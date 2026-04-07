@@ -1,0 +1,303 @@
+{
+  "pack": "ecc",
+  "profiles": {
+    "starter": "High-impact default set with tight prompt footprint",
+    "advanced": "Maximum coverage profile"
+  },
+  "mappings": [
+    {
+      "source_skill": "skills/api-design/SKILL.md",
+      "normalized_skill": "api_design",
+      "target_roles": [
+        "architect",
+        "backend_developer",
+        "code_reviewer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/architecture-decision-records/SKILL.md",
+      "normalized_skill": "architecture_decision_records",
+      "target_roles": [
+        "product_manager",
+        "architect",
+        "code_reviewer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/backend-patterns/SKILL.md",
+      "normalized_skill": "backend_patterns",
+      "target_roles": [
+        "backend_developer",
+        "code_reviewer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/coding-standards/SKILL.md",
+      "normalized_skill": "coding_standards",
+      "target_roles": [
+        "backend_developer",
+        "qa_engineer",
+        "code_reviewer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/context-budget/SKILL.md",
+      "normalized_skill": "context_budget",
+      "target_roles": [
+        "product_manager",
+        "architect",
+        "backend_developer",
+        "qa_engineer",
+        "code_reviewer",
+        "devops_engineer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/deep-research/SKILL.md",
+      "normalized_skill": "deep_research",
+      "target_roles": [
+        "product_manager",
+        "architect",
+        "code_reviewer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/deployment-patterns/SKILL.md",
+      "normalized_skill": "deployment_patterns",
+      "target_roles": [
+        "devops_engineer",
+        "backend_developer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/docker-patterns/SKILL.md",
+      "normalized_skill": "docker_patterns",
+      "target_roles": [
+        "devops_engineer",
+        "backend_developer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/documentation-lookup/SKILL.md",
+      "normalized_skill": "documentation_lookup",
+      "target_roles": [
+        "architect",
+        "backend_developer",
+        "qa_engineer",
+        "code_reviewer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/e2e-testing/SKILL.md",
+      "normalized_skill": "e2e_testing",
+      "target_roles": [
+        "qa_engineer",
+        "backend_developer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/git-workflow/SKILL.md",
+      "normalized_skill": "git_workflow",
+      "target_roles": [
+        "backend_developer",
+        "code_reviewer",
+        "devops_engineer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/github-ops/SKILL.md",
+      "normalized_skill": "github_ops",
+      "target_roles": [
+        "code_reviewer",
+        "devops_engineer",
+        "backend_developer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/prompt-optimizer/SKILL.md",
+      "normalized_skill": "prompt_optimizer",
+      "target_roles": [
+        "product_manager",
+        "architect",
+        "code_reviewer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/python-patterns/SKILL.md",
+      "normalized_skill": "python_patterns",
+      "target_roles": [
+        "backend_developer",
+        "code_reviewer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/python-testing/SKILL.md",
+      "normalized_skill": "python_testing",
+      "target_roles": [
+        "qa_engineer",
+        "backend_developer",
+        "code_reviewer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/database-migrations/SKILL.md",
+      "normalized_skill": "database_migrations",
+      "target_roles": [
+        "architect",
+        "backend_developer",
+        "devops_engineer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/postgres-patterns/SKILL.md",
+      "normalized_skill": "postgres_patterns",
+      "target_roles": [
+        "architect",
+        "backend_developer",
+        "code_reviewer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/security-review/SKILL.md",
+      "normalized_skill": "security_review",
+      "target_roles": [
+        "architect",
+        "code_reviewer",
+        "backend_developer",
+        "devops_engineer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/security-scan/SKILL.md",
+      "normalized_skill": "security_scan",
+      "target_roles": [
+        "code_reviewer",
+        "devops_engineer",
+        "backend_developer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/repo-scan/SKILL.md",
+      "normalized_skill": "repo_scan",
+      "target_roles": [
+        "code_reviewer",
+        "product_manager",
+        "architect"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/search-first/SKILL.md",
+      "normalized_skill": "search_first",
+      "target_roles": [
+        "product_manager",
+        "architect",
+        "backend_developer",
+        "qa_engineer",
+        "code_reviewer",
+        "devops_engineer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/tdd-workflow/SKILL.md",
+      "normalized_skill": "tdd_workflow",
+      "target_roles": [
+        "backend_developer",
+        "qa_engineer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/verification-loop/SKILL.md",
+      "normalized_skill": "verification_loop",
+      "target_roles": [
+        "backend_developer",
+        "qa_engineer",
+        "code_reviewer"
+      ],
+      "enabled_by_default": true
+    },
+    {
+      "source_skill": "skills/terminal-ops/SKILL.md",
+      "normalized_skill": "terminal_ops",
+      "target_roles": [
+        "backend_developer",
+        "devops_engineer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/codebase-onboarding/SKILL.md",
+      "normalized_skill": "codebase_onboarding",
+      "target_roles": [
+        "backend_developer",
+        "qa_engineer",
+        "code_reviewer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/agentic-engineering/SKILL.md",
+      "normalized_skill": "agentic_engineering",
+      "target_roles": [
+        "product_manager",
+        "architect",
+        "code_reviewer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/autonomous-loops/SKILL.md",
+      "normalized_skill": "autonomous_loops",
+      "target_roles": [
+        "backend_developer",
+        "qa_engineer",
+        "code_reviewer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/strategic-compact/SKILL.md",
+      "normalized_skill": "strategic_compact",
+      "target_roles": [
+        "product_manager",
+        "architect",
+        "backend_developer",
+        "qa_engineer",
+        "code_reviewer",
+        "devops_engineer"
+      ],
+      "enabled_by_default": false
+    },
+    {
+      "source_skill": "skills/quality-nonconformance/SKILL.md",
+      "normalized_skill": "quality_nonconformance",
+      "target_roles": [
+        "qa_engineer",
+        "code_reviewer",
+        "backend_developer"
+      ],
+      "enabled_by_default": false
+    }
+  ]
+}

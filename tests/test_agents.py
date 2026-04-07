@@ -182,3 +182,20 @@ def test_build_agents_applies_skill_config(mock_llm):
     assert "dependency hygiene" in agent.skills
     assert "security-first thinking" in agent.skills
     assert agent.enforce_handoff_sections is False
+
+
+def test_build_agents_applies_external_ecc_pack(mock_llm):
+    enabled = {k: False for k in AGENT_ORDER}
+    enabled["qa_engineer"] = True
+    agents = build_agents(
+        mock_llm,
+        enabled=enabled,
+        llm_config={},
+        skills_config={
+            "packs": {"ecc": {"enabled": True, "profile": "starter"}},
+            "include_default_role_skills": False,
+        },
+    )
+    assert len(agents) == 1
+    agent = agents[0]
+    assert "python-testing" in agent.skills
