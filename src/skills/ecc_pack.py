@@ -71,7 +71,7 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="frontend-patterns",
         description="Apply scalable UI architecture patterns and state-management discipline.",
         category="implementation",
-        recommended_roles=("frontend_developer", "architect", "code_reviewer"),
+        recommended_roles=("ui_ux_designer", "frontend_developer", "architect", "code_reviewer"),
         priority=1,
     ),
     "ux_design": CanonicalSkill(
@@ -79,7 +79,7 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="ux-design",
         description="Design user-centered flows with clear interaction and usability principles.",
         category="design",
-        recommended_roles=("frontend_developer", "product_manager", "qa_engineer"),
+        recommended_roles=("ui_ux_designer", "frontend_developer", "product_manager", "qa_engineer"),
         priority=1,
     ),
     "accessibility_review": CanonicalSkill(
@@ -87,7 +87,12 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="accessibility-review",
         description="Enforce accessibility requirements and inclusive design checks.",
         category="design",
-        recommended_roles=("frontend_developer", "qa_engineer", "code_reviewer"),
+        recommended_roles=(
+            "ui_ux_designer",
+            "frontend_developer",
+            "qa_engineer",
+            "code_reviewer",
+        ),
         priority=1,
     ),
     "coding_standards": CanonicalSkill(
@@ -106,7 +111,9 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         recommended_roles=(
             "product_manager",
             "architect",
+            "ui_ux_designer",
             "backend_developer",
+            "security_engineer",
             "qa_engineer",
             "code_reviewer",
             "devops_engineer",
@@ -214,7 +221,13 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="security-review",
         description="Review code and architecture from a threat-first perspective.",
         category="security",
-        recommended_roles=("architect", "code_reviewer", "backend_developer", "devops_engineer"),
+        recommended_roles=(
+            "architect",
+            "security_engineer",
+            "code_reviewer",
+            "backend_developer",
+            "devops_engineer",
+        ),
         priority=1,
     ),
     "security_scan": CanonicalSkill(
@@ -222,7 +235,12 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="security-scan",
         description="Run and interpret security scans with remediation guidance.",
         category="security",
-        recommended_roles=("code_reviewer", "devops_engineer", "backend_developer"),
+        recommended_roles=(
+            "security_engineer",
+            "code_reviewer",
+            "devops_engineer",
+            "backend_developer",
+        ),
         priority=1,
     ),
     "repo_scan": CanonicalSkill(
@@ -241,7 +259,9 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         recommended_roles=(
             "product_manager",
             "architect",
+            "ui_ux_designer",
             "backend_developer",
+            "security_engineer",
             "qa_engineer",
             "code_reviewer",
             "devops_engineer",

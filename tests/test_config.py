@@ -46,7 +46,9 @@ def test_deep_merge_does_not_mutate_base():
 def test_load_config_returns_defaults_when_no_file(tmp_path):
     cfg = load_config(tmp_path / "nonexistent.yaml")
     assert cfg["llm"]["model"] == "qwen2.5:7b-instruct"
+    assert cfg["llm"]["routing"]["ui_ux_designer"] == "qwen2.5:7b-instruct"
     assert cfg["llm"]["routing"]["backend_developer"] == "deepseek-coder:6.7b"
+    assert cfg["llm"]["routing"]["security_engineer"] == "phi3:mini"
     assert cfg["llm"]["fallbacks"]["backend_developer"] == [
         "qwen2.5:7b-instruct",
     ]
@@ -56,6 +58,8 @@ def test_load_config_returns_defaults_when_no_file(tmp_path):
         "phi3:mini",
     ]
     assert cfg["agents"]["ceo_planner"] is True
+    assert cfg["agents"]["ui_ux_designer"] is True
+    assert cfg["agents"]["security_engineer"] is True
     assert cfg["agents"]["product_manager"] is True
     assert cfg["crew"]["max_fix_iterations"] == 1
     assert cfg["crew"]["require_strategy_approval"] is True

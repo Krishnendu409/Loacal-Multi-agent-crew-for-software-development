@@ -30,6 +30,12 @@ ROLE_DEFAULT_SKILLS: dict[str, list[str]] = {
         "scalability and reliability planning",
         "threat modeling",
     ],
+    "ui_ux_designer": [
+        "journey mapping",
+        "interaction design",
+        "accessibility-centered design",
+        "design-system thinking",
+    ],
     "backend_developer": [
         "clean code and refactoring",
         "defensive programming",
@@ -47,6 +53,12 @@ ROLE_DEFAULT_SKILLS: dict[str, list[str]] = {
         "edge-case exploration",
         "regression prevention",
         "quality risk assessment",
+    ],
+    "security_engineer": [
+        "threat modeling",
+        "vulnerability analysis",
+        "secure architecture review",
+        "remediation prioritization",
     ],
     "code_reviewer": [
         "code quality review",

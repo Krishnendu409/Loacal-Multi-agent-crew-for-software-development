@@ -110,6 +110,8 @@ def test_build_agents_default_excludes_devops(mock_llm):
     assert "DevOps Engineer" not in roles
     assert "CEO Planner" in roles
     assert "Market Researcher" in roles
+    assert "UI/UX Designer" in roles
+    assert "Security Engineer" in roles
     assert "Product Manager" in roles
 
 
@@ -136,8 +138,10 @@ def test_build_agents_preserves_order(mock_llm):
         "Market Researcher",
         "Product Manager",
         "Software Architect",
+        "UI/UX Designer",
         "Frontend Developer",
         "Backend Developer",
+        "Security Engineer",
         "QA Engineer",
         "Code Reviewer",
         "DevOps Engineer",

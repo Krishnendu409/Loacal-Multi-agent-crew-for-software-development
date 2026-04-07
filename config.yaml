@@ -28,8 +28,10 @@ llm:
     market_researcher: qwen2.5:7b-instruct
     product_manager: qwen2.5:7b-instruct
     architect: qwen2.5:7b-instruct
+    ui_ux_designer: qwen2.5:7b-instruct
     frontend_developer: deepseek-coder:6.7b
     backend_developer: deepseek-coder:6.7b
+    security_engineer: phi3:mini
     qa_engineer: phi3:mini
     code_reviewer: phi3:mini
     devops_engineer: deepseek-coder:6.7b
@@ -39,8 +41,10 @@ llm:
     market_researcher: [phi3:mini]
     product_manager: [phi3:mini]
     architect: [phi3:mini]
+    ui_ux_designer: [phi3:mini]
     frontend_developer: [qwen2.5:7b-instruct]
     backend_developer: [qwen2.5:7b-instruct]
+    security_engineer: [qwen2.5:7b-instruct]
     qa_engineer: [qwen2.5:7b-instruct]
     code_reviewer: [qwen2.5:7b-instruct]
     devops_engineer: [qwen2.5:7b-instruct]
@@ -50,8 +54,10 @@ llm:
     market_researcher: {temperature: 0.2, num_predict: 1536}
     product_manager: {temperature: 0.3, num_predict: 1536}
     architect: {temperature: 0.2, num_predict: 1536}
+    ui_ux_designer: {temperature: 0.3, num_predict: 1536}
     frontend_developer: {temperature: 0.2, num_predict: 2048}
     backend_developer: {temperature: 0.2, num_predict: 2048}
+    security_engineer: {temperature: 0.1, num_predict: 1024}
     qa_engineer: {temperature: 0.1, num_predict: 1024}
     code_reviewer: {temperature: 0.1, num_predict: 1024}
     devops_engineer: {temperature: 0.2, num_predict: 1024}
@@ -62,8 +68,10 @@ agents:
   market_researcher: true
   product_manager: true
   architect: true
+  ui_ux_designer: true
   frontend_developer: true
   backend_developer: true
+  security_engineer: true
   qa_engineer: true
   code_reviewer: true
   devops_engineer: false   # optional – enable for deployment configs
@@ -104,8 +112,10 @@ skills:
     - documentation discipline
   # Optional per-role additions (keys match the `agents` section)
   per_role:
+    ui_ux_designer: [interaction design and prototype clarity]
     frontend_developer: [ui consistency and accessibility]
     backend_developer: [dependency hygiene]
+    security_engineer: [threat-led validation]
     qa_engineer: [risk-based test prioritization]
   # Optional global and per-role explicit includes
   include: []

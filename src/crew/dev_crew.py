@@ -24,8 +24,10 @@ _ROLE_TO_TASK_KEY: dict[str, str] = {
     "Market Researcher": "market_researcher",
     "Product Manager": "product_manager",
     "Software Architect": "architect",
+    "UI/UX Designer": "ui_ux_designer",
     "Frontend Developer": "frontend_developer",
     "Backend Developer": "backend_developer",
+    "Security Engineer": "security_engineer",
     "QA Engineer": "qa_engineer",
     "Code Reviewer": "code_reviewer",
     "DevOps Engineer": "devops_engineer",
@@ -127,8 +129,13 @@ class DevCrew:
             if not approved:
                 return outputs
 
-        # Phase 2: Architecture + build execution
-        for role in ["Software Architect", "Frontend Developer", "Backend Developer"]:
+        # Phase 2: Architecture + design + build execution
+        for role in [
+            "Software Architect",
+            "UI/UX Designer",
+            "Frontend Developer",
+            "Backend Developer",
+        ]:
             agent = role_to_agent.get(role)
             if agent is None:
                 continue
@@ -141,8 +148,9 @@ class DevCrew:
             )
             completed_roles.add(role)
 
-        # Phase 3/4: QA + Reviewer findings, then implementation fix pass (bounded)
+        # Phase 3/4: QA + Security + Reviewer findings, then implementation fix pass (bounded)
         qa_agent = role_to_agent.get("QA Engineer")
+        security_agent = role_to_agent.get("Security Engineer")
         reviewer_agent = role_to_agent.get("Code Reviewer")
         frontend_agent = role_to_agent.get("Frontend Developer")
         backend_agent = role_to_agent.get("Backend Developer")
@@ -151,10 +159,10 @@ class DevCrew:
         ]
         must_address: list[str] = []
 
-        if qa_agent or reviewer_agent:
+        if qa_agent or reviewer_agent or security_agent:
             for iteration in range(self.max_fix_iterations + 1):
                 round_findings: list[str] = []
-                for review_agent in [qa_agent, reviewer_agent]:
+                for review_agent in [qa_agent, security_agent, reviewer_agent]:
                     if review_agent is None:
                         continue
                     response = self._execute_agent(

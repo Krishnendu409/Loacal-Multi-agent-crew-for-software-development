@@ -70,9 +70,20 @@ TASKS: dict[str, Task] = {
             "design a pragmatic system architecture for this project.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Choose the simplest architecture that meets the requirements.  Document "
-            "your technology choices with clear reasoning.  The Backend Developer "
+            "your technology choices with clear reasoning.  UI/UX and engineering roles "
             "will implement the system based on your design.  Include clear trade-offs "
-            "and end with an explicit handoff note for the Backend Developer."
+            "and end with explicit handoff notes for the UI/UX Designer and developers."
+        ),
+    ),
+    "ui_ux_designer": Task(
+        title="Design user experience and interface system",
+        description=(
+            "Based on strategy, product requirements, and architecture, design the complete "
+            "user experience blueprint before implementation.\n\n"
+            "Original requirements:\n---\n{requirements}\n---\n\n"
+            "Define user journeys, navigation, interaction states, visual consistency rules, "
+            "and accessibility requirements. Keep the output implementation-ready and end "
+            "with an explicit handoff note for the Frontend Developer."
         ),
     ),
     "backend_developer": Task(
@@ -96,19 +107,30 @@ TASKS: dict[str, Task] = {
             "Provide production-quality UI structure, component logic, and clear interaction "
             "flows. Ensure responsiveness, accessibility, and error handling paths. "
             "If a must-address checklist is provided, fix only those items. End with "
-            "an explicit handoff note for Backend, QA, and Code Review."
+            "an explicit handoff note for Backend, Security Engineer, QA, and Code Review."
         ),
     ),
     "qa_engineer": Task(
         title="Create test plan and automated tests",
         description=(
-            "Review the implementation produced by the Backend Developer and create "
+            "Review the implementation produced by Frontend/Backend developers and create "
             "a comprehensive test plan.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Write concrete automated tests that verify the most important behaviors. "
             "Highlight any bugs or quality concerns you find in the implementation. "
             "Provide a must-address checklist with severity tags and end with an "
-            "explicit handoff note for the Backend Developer."
+            "explicit handoff note for Frontend/Backend developers."
+        ),
+    ),
+    "security_engineer": Task(
+        title="Run threat-oriented security review and remediation guidance",
+        description=(
+            "Review architecture and implementation outputs from the team and produce a "
+            "security-focused assessment.\n\n"
+            "Original requirements:\n---\n{requirements}\n---\n\n"
+            "Identify vulnerabilities, insecure defaults, and abuse paths. For each issue, "
+            "provide severity and concrete remediation guidance. End with a must-address "
+            "checklist and explicit handoff note for Frontend/Backend developers."
         ),
     ),
     "code_reviewer": Task(

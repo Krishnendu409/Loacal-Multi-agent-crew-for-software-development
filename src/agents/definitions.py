@@ -181,6 +181,29 @@ def _architect(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Age
     )
 
 
+def _ui_ux_designer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
+    return Agent(
+        role="UI/UX Designer",
+        goal=(
+            "Design user journeys, interface structure, and interaction patterns that maximize "
+            "clarity, usability, and accessibility."
+        ),
+        backstory=(
+            "You are a Senior UI/UX Designer who translates product goals into practical user "
+            "flows, wireframes, and design decisions that engineering can build reliably."
+        ),
+        llm=llm,
+        extra_instructions=(
+            "Structure your output as:\n"
+            "1. **User Journey Map** – key personas and flows\n"
+            "2. **Information Architecture** – screens and navigation model\n"
+            "3. **Interaction & Visual Guidelines** – layout, state changes, feedback behavior\n"
+            "4. **Accessibility Requirements** – keyboard, contrast, semantics, error messaging\n"
+            "5. **Design Handoff** – implementation-ready guidance for Frontend Developer"
+        ),
+    )
+
+
 def _backend_developer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="Backend Developer",
@@ -202,6 +225,30 @@ def _backend_developer(llm: "OllamaClient", llm_config: dict[str, object] | None
             "3. **Setup Instructions** – how to install dependencies and run the code\n"
             "4. **Known Limitations** – anything not yet implemented\n"
             "5. **Checklist Coverage** – explicitly map each must-address item to a fix"
+        ),
+    )
+
+
+def _security_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
+    return Agent(
+        role="Security Engineer",
+        goal=(
+            "Proactively identify and prioritize architecture and implementation security risks, "
+            "then provide concrete remediation guidance."
+        ),
+        backstory=(
+            "You are an application security engineer focused on threat modeling, secure defaults, "
+            "and practical fixes that teams can apply without overcomplication."
+        ),
+        llm=llm,
+        extra_instructions=(
+            "Structure your output as:\n"
+            "1. **Threat Model Snapshot** – assets, trust boundaries, abuse paths\n"
+            "2. **Security Findings** – severity-tagged issues with reasoning\n"
+            "3. **Required Fixes** – concrete, prioritized remediation actions\n"
+            "4. **Verification Guidance** – how to validate each fix\n"
+            "5. **Must-Address Checklist** – bullet list where each item starts with "
+            "[Critical], [Major], or [Minor]"
         ),
     )
 
@@ -317,8 +364,10 @@ _AGENT_FACTORIES = {
     "market_researcher": _market_researcher,
     "product_manager": _product_manager,
     "architect": _architect,
+    "ui_ux_designer": _ui_ux_designer,
     "frontend_developer": _frontend_developer,
     "backend_developer": _backend_developer,
+    "security_engineer": _security_engineer,
     "qa_engineer": _qa_engineer,
     "code_reviewer": _code_reviewer,
     "devops_engineer": _devops_engineer,
@@ -330,8 +379,10 @@ AGENT_ORDER = [
     "market_researcher",
     "product_manager",
     "architect",
+    "ui_ux_designer",
     "frontend_developer",
     "backend_developer",
+    "security_engineer",
     "qa_engineer",
     "code_reviewer",
     "devops_engineer",

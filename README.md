@@ -15,7 +15,7 @@ runtime.
 | 💻 **Runs locally** | Works on mid-range laptops (4 GB RAM minimum with `phi3` or `llama3.2`) |
 | 🗣️ **Agent communication** | Each agent reads compressed prior context + original requirements + QA/Reviewer checklists |
 | 🧠 **Built-in skill packs** | Shared + role-specific skills are injected into prompts, configurable in `config.yaml` |
-| 👥 **Full dev team** | CEO Planner → Market Researcher → PM → Architect → Frontend + Backend → QA → Code Reviewer → DevOps (optional) |
+| 👥 **Full dev team** | CEO Planner → Market Researcher → PM → Architect → UI/UX → Frontend + Backend → Security → QA → Code Reviewer → DevOps (optional) |
 | 🔁 **Fix-pass loop** | Dev → QA/Reviewer → Dev remediation pass (bounded iterations) |
 | 📄 **Saved outputs** | Every agent's response and a final compiled report saved to `output/` |
 | ⚙️ **Configurable** | Swap models, enable/disable agents, change output paths via `config.yaml` |
@@ -49,12 +49,22 @@ problem statement (you)
          │  context
          ▼
 ┌─────────────────┐
+│  UI/UX Designer │  Defines journeys, interactions, and accessibility
+└────────┬────────┘
+         │  context
+         ▼
+┌─────────────────┐
 │Frontend Developer│ Designs and builds UX/UI layer
 └────────┬────────┘
          │  context
          ▼
 ┌─────────────────┐
 │Backend Developer│  Implements the code
+└────────┬────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│Security Engineer│  Threat-models and reviews vulnerabilities
 └────────┬────────┘
          │  context
          ▼
@@ -118,6 +128,9 @@ pip install -r requirements.txt
 python main.py run
 ```
 
+By default, strategy approval requires explicit confirmation (`Continue` defaults to `No`).
+Use `--auto-approve-strategy` to proceed non-interactively.
+
 **Inline mode**:
 
 ```bash
@@ -129,7 +142,7 @@ python main.py run \
 **Use a different model for this run**:
 
 ```bash
-python main.py run --model llama3.2 --project "Todo API"
+python main.py run --model deepseek-coder:6.7b --project "Todo API"
 ```
 
 ---
@@ -156,8 +169,10 @@ llm:
     market_researcher: qwen2.5:7b-instruct
     product_manager: qwen2.5:7b-instruct
     architect: qwen2.5:7b-instruct
+    ui_ux_designer: qwen2.5:7b-instruct
     frontend_developer: deepseek-coder:6.7b
     backend_developer: deepseek-coder:6.7b
+    security_engineer: phi3:mini
     qa_engineer: phi3:mini
     code_reviewer: phi3:mini
     devops_engineer: deepseek-coder:6.7b
@@ -175,8 +190,10 @@ agents:
   market_researcher: true
   product_manager: true
   architect: true
+  ui_ux_designer: true
   frontend_developer: true
   backend_developer: true
+  security_engineer: true
   qa_engineer: true
   code_reviewer: true
   devops_engineer: false  # set to true to add deployment configs
@@ -206,8 +223,10 @@ skills:
     - verification mindset
     - documentation discipline
   per_role:
+    ui_ux_designer: [interaction design and prototype clarity]
     frontend_developer: [ui consistency and accessibility]
     backend_developer: [dependency hygiene]
+    security_engineer: [threat-led validation]
     qa_engineer: [risk-based test prioritization]
   include: []
   per_role_include: {}
@@ -252,7 +271,7 @@ Inventory and mapping artifacts:
 ├── src/
 │   ├── agents/
 │   │   ├── base_agent.py        # Agent base class
-│   │   └── definitions.py       # CEO/Research/PM/Arch/FE/BE/QA/Reviewer role definitions
+│   │   └── definitions.py       # CEO/Research/PM/Arch/UIUX/FE/BE/Sec/QA/Reviewer role definitions
 │   ├── tasks/
 │   │   └── software_dev_tasks.py  # Task templates for each role
 │   ├── crew/

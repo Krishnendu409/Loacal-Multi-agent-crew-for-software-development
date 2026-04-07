@@ -12,6 +12,13 @@ def test_resolve_agent_skills_uses_defaults_for_role():
     assert "secure coding" in skills
 
 
+def test_resolve_agent_skills_uses_defaults_for_uiux_and_security_roles():
+    uiux_skills = resolve_agent_skills("ui_ux_designer", None)
+    sec_skills = resolve_agent_skills("security_engineer", None)
+    assert "interaction design" in uiux_skills
+    assert "threat modeling" in sec_skills
+
+
 def test_resolve_agent_skills_merges_shared_and_per_role():
     skills = resolve_agent_skills(
         "qa_engineer",
@@ -45,6 +52,25 @@ def test_resolve_agent_skills_includes_ecc_pack_when_enabled():
     )
     assert "python-patterns" in skills
     assert "tdd-workflow" in skills
+
+
+def test_resolve_agent_skills_includes_ecc_pack_for_uiux_and_security_roles():
+    uiux_skills = resolve_agent_skills(
+        "ui_ux_designer",
+        {
+            "include_default_role_skills": False,
+            "packs": {"ecc": {"enabled": True, "profile": "starter"}},
+        },
+    )
+    sec_skills = resolve_agent_skills(
+        "security_engineer",
+        {
+            "include_default_role_skills": False,
+            "packs": {"ecc": {"enabled": True, "profile": "starter"}},
+        },
+    )
+    assert "ux-design" in uiux_skills
+    assert "security-review" in sec_skills
 
 
 def test_resolve_agent_skills_supports_exclusions():

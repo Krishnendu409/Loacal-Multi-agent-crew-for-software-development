@@ -45,8 +45,10 @@ def full_crew(tmp_path):
         "Market Researcher",
         "Product Manager",
         "Software Architect",
+        "UI/UX Designer",
         "Frontend Developer",
         "Backend Developer",
+        "Security Engineer",
         "QA Engineer",
         "Code Reviewer",
     ]
@@ -71,8 +73,10 @@ def test_kickoff_returns_dict_with_all_roles(full_crew):
         "Market Researcher",
         "Product Manager",
         "Software Architect",
+        "UI/UX Designer",
         "Frontend Developer",
         "Backend Developer",
+        "Security Engineer",
         "QA Engineer",
         "Code Reviewer",
     }
@@ -109,8 +113,8 @@ def test_kickoff_later_agents_receive_context(full_crew):
 def test_kickoff_saves_individual_files(full_crew, tmp_path):
     full_crew.kickoff("Build a chat app", project_name="test_project")
     md_files = list(tmp_path.rglob("*.md"))
-    # 7 individual files + 1 final report
-    assert len(md_files) >= 8
+    # 9 individual files + 1 final report
+    assert len(md_files) >= 10
 
 
 def test_kickoff_saves_final_report(full_crew, tmp_path):
@@ -163,8 +167,10 @@ def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
         "Market Researcher",
         "Product Manager",
         "Software Architect",
+        "UI/UX Designer",
         "Frontend Developer",
         "Backend Developer",
+        "Security Engineer",
         "QA Engineer",
         "Code Reviewer",
     ]
@@ -180,6 +186,11 @@ def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
                 "## Must-Address Checklist\n"
                 "- [Minor] Improve naming consistency.\n"
             )
+        elif agent.role == "Security Engineer":
+            agent.llm.chat.return_value = (
+                "## Must-Address Checklist\n"
+                "- [Major] Ensure output encoding for user-provided content.\n"
+            )
     crew = DevCrew(
         agents=agents,
         output_dir=tmp_path,
@@ -190,8 +201,12 @@ def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
 
     backend = next(a for a in agents if a.role == "Backend Developer")
     frontend = next(a for a in agents if a.role == "Frontend Developer")
+    security = next(a for a in agents if a.role == "Security Engineer")
     assert frontend.llm.chat.call_count == 2
     assert backend.llm.chat.call_count == 2
+    assert security.llm.chat.call_count >= 1
+    frontend_second_call_user_message = frontend.llm.chat.call_args_list[1][0][1]
+    assert "Must-Address Checklist" in frontend_second_call_user_message
     second_call_user_message = backend.llm.chat.call_args_list[1][0][1]
     assert "Must-Address Checklist" in second_call_user_message
 
