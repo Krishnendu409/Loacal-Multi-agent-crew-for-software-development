@@ -75,7 +75,7 @@ def run(
         None,
         "--requirements",
         "-r",
-        help="Raw problem statement / requirements.  If omitted you will be prompted.",
+        help="Raw problem statement / requirements. If omitted you will be prompted.",
     ),
     model: Optional[str] = typer.Option(
         None, "--model", "-m", help="Ollama model to use (overrides config.yaml)."
@@ -110,7 +110,7 @@ def run(
     # --- Gather requirements ------------------------------------------
     if not requirements:
         console.print(
-            "\n[bold cyan]📝 Enter your problem statement.[/bold cyan]\n"
+            "\n[bold cyan]📝 Enter your problem statement (or requirements).[/bold cyan]\n"
             "  You can type multiple lines.  When finished, type a single "
             "[bold]END[/bold] on its own line and press Enter.\n"
         )

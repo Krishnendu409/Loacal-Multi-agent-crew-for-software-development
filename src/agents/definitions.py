@@ -25,6 +25,7 @@ def _allowed_models(llm_config: dict[str, object] | None) -> set[str]:
 
 
 def _model_is_allowed(model: str, allowed: set[str]) -> bool:
+    """Return True when *model* is allowed; empty *allowed* means allow all models."""
     return not allowed or model in allowed
 
 
@@ -41,18 +42,23 @@ def _apply_llm_role_config(
     routing = llm_config.get("routing", {})
     if isinstance(routing, dict):
         model = routing.get(role_key)
-        if isinstance(model, str) and model.strip() and _model_is_allowed(model.strip(), allowed):
-            agent.llm_model = model.strip()
+        if isinstance(model, str):
+            model_clean = model.strip()
+            if model_clean and _model_is_allowed(model_clean, allowed):
+                agent.llm_model = model_clean
 
     fallbacks = llm_config.get("fallbacks", {})
     if isinstance(fallbacks, dict):
         role_fallbacks = fallbacks.get(role_key, [])
         if isinstance(role_fallbacks, list):
-            agent.llm_fallback_models = [
-                m.strip()
-                for m in role_fallbacks
-                if isinstance(m, str) and m.strip() and _model_is_allowed(m.strip(), allowed)
-            ]
+            cleaned: list[str] = []
+            for fallback in role_fallbacks:
+                if not isinstance(fallback, str):
+                    continue
+                fallback_clean = fallback.strip()
+                if fallback_clean and _model_is_allowed(fallback_clean, allowed):
+                    cleaned.append(fallback_clean)
+            agent.llm_fallback_models = cleaned
 
     role_options = llm_config.get("role_options", {})
     if isinstance(role_options, dict):

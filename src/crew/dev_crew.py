@@ -217,7 +217,15 @@ class DevCrew:
                 if not implementation_agents or iteration >= self.max_fix_iterations:
                     break
 
-                fix_task = self._render_fix_task(requirements=requirements, iteration=iteration + 1)
+                fix_task = self._render_fix_task(
+                    requirements=requirements,
+                    iteration=iteration + 1,
+                    reviewer_roles=[
+                        agent.role
+                        for agent in [performance_agent, security_agent, qa_agent, reviewer_agent]
+                        if agent is not None
+                    ],
+                )
                 for implementation_agent in implementation_agents:
                     self._execute_agent(
                         agent=implementation_agent,
@@ -268,7 +276,7 @@ class DevCrew:
         key = _ROLE_TO_TASK_KEY.get(agent.role)
         if key is None or key not in TASKS:
             raise ValueError(
-                f"No task defined for role '{agent.role}'.  "
+                f"No task defined for role '{agent.role}'. "
                 f"Known roles: {list(_ROLE_TO_TASK_KEY.keys())}"
             )
         return TASKS[key]
@@ -326,9 +334,10 @@ class DevCrew:
                 return True
         return False
 
-    def _render_fix_task(self, requirements: str, iteration: int) -> str:
+    def _render_fix_task(self, requirements: str, iteration: int, reviewer_roles: list[str]) -> str:
+        review_scope = ", ".join(reviewer_roles) if reviewer_roles else "review agents"
         return (
-            f"Fix pass #{iteration}: Address only Performance/Security/QA/Reviewer checklist items for the "
+            f"Fix pass #{iteration}: Address only {review_scope} checklist items for the "
             "current implementation. Keep architecture unchanged. Update code and setup "
             "instructions as needed. Be explicit about what was fixed and what remains.\n\n"
             f"Original requirements:\n---\n{requirements}\n---"

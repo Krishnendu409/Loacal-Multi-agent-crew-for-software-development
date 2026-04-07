@@ -15,7 +15,7 @@ runtime.
 | 💻 **Runs locally** | Works on mid-range laptops (4 GB RAM minimum with `phi3` or `llama3.2`) |
 | 🗣️ **Agent communication** | Each agent reads compressed prior context + original requirements + QA/Reviewer checklists |
 | 🧠 **Built-in skill packs** | Shared + role-specific skills are injected into prompts, configurable in `config.yaml` |
-| 👥 **Full dev team** | CEO Planner → Market Researcher → Customer Feedback → PM → Compliance → Architect → UI/UX → DB/API/FE/BE/Data → Performance/Security/QA/Review → Docs/SRE/Release → DevOps (optional) |
+| 👥 **Full dev team** | 18-role local team spanning strategy, market research, design, engineering, review, reliability, docs, and release (see architecture flow below) |
 | 🔁 **Fix-pass loop** | Implementation roles → Performance/Security/QA/Reviewer → targeted remediation pass (bounded iterations) |
 | 📄 **Saved outputs** | Every agent's response and a final compiled report saved to `output/` |
 | ⚙️ **Configurable** | Swap models, enable/disable agents, change output paths via `config.yaml` |

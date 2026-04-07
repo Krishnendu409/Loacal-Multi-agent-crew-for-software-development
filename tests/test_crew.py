@@ -39,7 +39,7 @@ def minimal_crew(tmp_path):
 
 @pytest.fixture()
 def full_crew(tmp_path):
-    """A crew with all main product+engineering agents."""
+    """A crew with all strategy, product, engineering, review, and release agents."""
     roles = [
         "CEO Planner",
         "Market Researcher",
@@ -131,8 +131,8 @@ def test_kickoff_later_agents_receive_context(full_crew):
 def test_kickoff_saves_individual_files(full_crew, tmp_path):
     full_crew.kickoff("Build a chat app", project_name="test_project")
     md_files = list(tmp_path.rglob("*.md"))
-    # 9 individual files + 1 final report
-    assert len(md_files) >= 10
+    # 18 individual files + 1 final report
+    assert len(md_files) >= 19
 
 
 def test_kickoff_saves_final_report(full_crew, tmp_path):
