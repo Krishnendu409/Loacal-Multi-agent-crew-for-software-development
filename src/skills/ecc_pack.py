@@ -303,6 +303,24 @@ PACK_PROFILES: dict[str, tuple[str, ...]] = {
 }
 
 
+def _validate_bidirectional_conflicts() -> None:
+    for skill in ECC_CANONICAL_SKILLS.values():
+        for conflict_key in skill.conflict_with:
+            other = ECC_CANONICAL_SKILLS.get(conflict_key)
+            if not other:
+                raise ValueError(
+                    f"Invalid conflict key '{conflict_key}' in skill '{skill.key}'"
+                )
+            if skill.key not in other.conflict_with:
+                raise ValueError(
+                    f"Conflict relationship must be bidirectional: "
+                    f"'{skill.key}' -> '{conflict_key}'"
+                )
+
+
+_validate_bidirectional_conflicts()
+
+
 def resolve_ecc_pack_labels(profile: str, role_key: str) -> list[str]:
     """Return ECC skill labels for *role_key* under *profile*."""
     selected = PACK_PROFILES.get(profile, PACK_PROFILES["starter"])

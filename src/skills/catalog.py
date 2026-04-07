@@ -128,7 +128,7 @@ def _apply_conflict_guardrails(skills: list[str], priority_map: dict[str, int]) 
         if not conflicting_existing:
             kept.append(skill)
             continue
-        # Equal priority keeps the first encountered skill for deterministic output.
+        # Lower-or-equal priority keeps the existing earlier skill for deterministic output.
         if any(priority_map.get(existing, 3) <= current_p for existing in conflicting_existing):
             continue
         for existing in conflicting_existing:
