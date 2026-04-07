@@ -79,6 +79,14 @@ _DEFAULTS: dict[str, Any] = {
     "skills": {
         "include_default_role_skills": True,
         "enforce_handoff_sections": True,
+        "strict_mode": False,
+        "max_skills_per_agent": 12,
+        "packs": {
+            "ecc": {
+                "enabled": True,
+                "profile": "starter",
+            }
+        },
         "shared": [
             "structured communication",
             "security-first thinking",
@@ -86,6 +94,10 @@ _DEFAULTS: dict[str, Any] = {
             "documentation discipline",
         ],
         "per_role": {},
+        "include": [],
+        "per_role_include": {},
+        "exclude": [],
+        "per_role_exclude": {},
     },
 }
 

@@ -165,6 +165,12 @@ crew:
 skills:
   include_default_role_skills: true
   enforce_handoff_sections: true
+  strict_mode: false
+  max_skills_per_agent: 12
+  packs:
+    ecc:
+      enabled: true
+      profile: starter
   shared:
     - structured communication
     - security-first thinking
@@ -173,7 +179,37 @@ skills:
   per_role:
     backend_developer: [dependency hygiene]
     qa_engineer: [risk-based test prioritization]
+  include: []
+  per_role_include: {}
+  exclude: []
+  per_role_exclude: {}
 ```
+
+---
+
+## 🧩 Imported ECC skill packs
+
+The project now supports an external imported pack from
+`affaan-m/everything-claude-code` via `skills.packs.ecc`.
+
+- `profile: starter` → high-impact default set (recommended)
+- `profile: advanced` → broader coverage set
+- `max_skills_per_agent` enforces prompt budget by keeping highest-priority skills
+- `exclude` / `per_role_exclude` disable noisy skills
+- `include` / `per_role_include` force-enable custom additions
+- `strict_mode: true` validates include/exclude references and fails on unknown skills
+
+Inventory and mapping artifacts:
+- `src/skills/data/ecc_inventory.json`
+- `src/skills/data/ecc_traceability_matrix.json`
+
+### Migration notes
+
+- Existing keys (`include_default_role_skills`, `enforce_handoff_sections`,
+  `shared`, `per_role`) remain supported and keep previous behavior.
+- New pack skills are layered in as: built-in defaults → external pack → user overrides.
+- If prompts become too long, reduce `max_skills_per_agent`, switch to
+  `starter`, or add `exclude` entries.
 
 ---
 

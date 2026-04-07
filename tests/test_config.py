@@ -56,6 +56,10 @@ def test_load_config_returns_defaults_when_no_file(tmp_path):
     assert cfg["output"]["save_final_report"] is True
     assert cfg["skills"]["include_default_role_skills"] is True
     assert cfg["skills"]["enforce_handoff_sections"] is True
+    assert cfg["skills"]["strict_mode"] is False
+    assert cfg["skills"]["max_skills_per_agent"] == 12
+    assert cfg["skills"]["packs"]["ecc"]["enabled"] is True
+    assert cfg["skills"]["packs"]["ecc"]["profile"] == "starter"
 
 
 def test_load_config_overrides_model(tmp_path):

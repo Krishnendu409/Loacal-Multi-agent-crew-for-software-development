@@ -71,6 +71,15 @@ skills:
   include_default_role_skills: true
   # Force consistent handoff sections between agents
   enforce_handoff_sections: true
+  # Strict validation for unknown skill references in include/exclude rules
+  strict_mode: false
+  # Prompt budget guardrail: keep top-priority skills when list is too long
+  max_skills_per_agent: 12
+  # External imported skill packs
+  packs:
+    ecc:
+      enabled: true
+      profile: starter   # starter | advanced
   # Shared skills injected into every role
   shared:
     - structured communication
@@ -81,3 +90,9 @@ skills:
   per_role:
     backend_developer: [dependency hygiene]
     qa_engineer: [risk-based test prioritization]
+  # Optional global and per-role explicit includes
+  include: []
+  per_role_include: {}
+  # Optional global and per-role explicit exclusions
+  exclude: []
+  per_role_exclude: {}
