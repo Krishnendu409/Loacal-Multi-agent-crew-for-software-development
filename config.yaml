@@ -1,0 +1,35 @@
+# Local Multi-Agent Software Development Crew - Configuration
+# Adjust these settings to suit your hardware and preferences.
+
+llm:
+  # Ollama model to use. Lighter models run faster on mid-range laptops.
+  # Recommended free models (install via `ollama pull <model>`):
+  #   - mistral          (~4 GB RAM, fast, good quality)
+  #   - llama3.2         (~2 GB RAM, very fast)
+  #   - deepseek-coder   (~4 GB RAM, excellent for code)
+  #   - codellama        (~4 GB RAM, good for code)
+  #   - phi3             (~2 GB RAM, very lightweight)
+  model: mistral
+  # Ollama server URL (default local)
+  base_url: http://localhost:11434
+  # Generation options
+  options:
+    temperature: 0.7
+    num_predict: 2048
+
+agents:
+  # Toggle which agents participate in the crew
+  product_manager: true
+  architect: true
+  backend_developer: true
+  qa_engineer: true
+  code_reviewer: true
+  devops_engineer: false   # optional – enable for deployment configs
+
+output:
+  # Where to save the generated artifacts
+  directory: output
+  # Save each agent's response as a separate file
+  save_individual_responses: true
+  # Save the final compiled report
+  save_final_report: true
