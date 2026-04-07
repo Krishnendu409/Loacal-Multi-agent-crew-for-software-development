@@ -123,18 +123,16 @@ def _apply_conflict_guardrails(skills: list[str], priority_map: dict[str, int]) 
         if not blockers:
             kept.append(skill)
             continue
-        drop_current = False
-        for existing in list(kept):
-            if existing in blockers:
-                existing_p = priority_map.get(existing, 3)
-                current_p = priority_map.get(skill, 3)
-                if current_p < existing_p:
-                    kept.remove(existing)
-                else:
-                    drop_current = True
-                break
-        if not drop_current:
+        current_p = priority_map.get(skill, 3)
+        conflicting_existing = [existing for existing in kept if existing in blockers]
+        if not conflicting_existing:
             kept.append(skill)
+            continue
+        if any(priority_map.get(existing, 3) <= current_p for existing in conflicting_existing):
+            continue
+        for existing in conflicting_existing:
+            kept.remove(existing)
+        kept.append(skill)
     return kept
 
 
@@ -152,8 +150,7 @@ def _apply_budget(skills: list[str], skills_config: dict[str, object] | None) ->
         return skills
     priority_map = ecc_priority_map()
     scored = sorted(
-        ((priority_map.get(skill, 3), idx, skill) for idx, skill in enumerate(skills)),
-        key=lambda x: (x[0], x[1]),
+        (priority_map.get(skill, 3), idx, skill) for idx, skill in enumerate(skills)
     )
     selected = {skill for _, _, skill in scored[:budget]}
     return [skill for skill in skills if skill in selected]
