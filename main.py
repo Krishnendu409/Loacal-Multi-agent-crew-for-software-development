@@ -121,10 +121,16 @@ def run(
         model=effective_model,
         base_url=cfg["llm"]["base_url"],
         options=cfg["llm"].get("options", {}),
+        retries=int(cfg["llm"].get("retries", 1)),
+        timeout_seconds=cfg["llm"].get("timeout_seconds"),
     )
 
     # --- Build agents -------------------------------------------------
-    agents = build_agents(llm, enabled=cfg["agents"])
+    llm_for_agents = dict(cfg["llm"])
+    if model:
+        llm_for_agents["routing"] = {k: model for k in cfg["agents"].keys()}
+        llm_for_agents["fallbacks"] = {}
+    agents = build_agents(llm, enabled=cfg["agents"], llm_config=llm_for_agents)
     if not agents:
         display.print_error(
             "No agents are enabled.  Check the 'agents' section in config.yaml."
@@ -137,6 +143,10 @@ def run(
         output_dir=cfg["output"]["directory"],
         save_individual=cfg["output"]["save_individual_responses"],
         save_report=cfg["output"]["save_final_report"],
+        max_fix_iterations=int(cfg.get("crew", {}).get("max_fix_iterations", 1)),
+        stop_on_no_major_issues=bool(
+            cfg.get("crew", {}).get("stop_on_no_major_issues", True)
+        ),
     )
 
     try:

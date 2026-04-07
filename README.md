@@ -13,8 +13,9 @@ runtime.
 |---------|--------|
 | 🆓 **Free** | Uses local Ollama models – zero cost, zero API keys |
 | 💻 **Runs locally** | Works on mid-range laptops (4 GB RAM minimum with `phi3` or `llama3.2`) |
-| 🗣️ **Agent communication** | Each agent reads the previous agents' output and builds on it |
+| 🗣️ **Agent communication** | Each agent reads compressed prior context + original requirements + QA/Reviewer checklists |
 | 👥 **Full dev team** | PM → Architect → Developer → QA → Code Reviewer → DevOps (optional) |
+| 🔁 **Fix-pass loop** | Dev → QA/Reviewer → Dev remediation pass (bounded iterations) |
 | 📄 **Saved outputs** | Every agent's response and a final compiled report saved to `output/` |
 | ⚙️ **Configurable** | Swap models, enable/disable agents, change output paths via `config.yaml` |
 
@@ -56,8 +57,9 @@ requirements (you)
 └─────────────────┘
 ```
 
-Every agent receives the **full accumulated context** from all previous agents,
-so each step builds naturally on the last—just like a real team handing work off.
+Every agent receives **original requirements + compressed accumulated context**
+from previous agents. QA/Reviewer can emit a must-address checklist that is fed
+back to the Developer for a remediation pass.
 
 ---
 
@@ -121,11 +123,26 @@ Copy or edit `config.yaml` to customise the system:
 
 ```yaml
 llm:
-  model: mistral          # any model you have pulled via `ollama pull`
+  model: mistral          # global fallback model (routing below is preferred)
   base_url: http://localhost:11434
+  retries: 1
+  timeout_seconds: 120
   options:
-    temperature: 0.7
+    temperature: 0.4
     num_predict: 2048
+  routing:
+    product_manager: qwen2.5:7b-instruct
+    architect: qwen2.5:7b-instruct
+    backend_developer: qwen2.5-coder:7b
+    qa_engineer: phi3:mini
+    code_reviewer: phi3:mini
+    devops_engineer: llama3.2:3b
+  fallbacks:
+    backend_developer: [deepseek-coder:6.7b, llama3.2:3b]
+  role_options:
+    backend_developer: {temperature: 0.2, num_predict: 2048}
+    qa_engineer: {temperature: 0.1, num_predict: 1024}
+    code_reviewer: {temperature: 0.1, num_predict: 1024}
 
 agents:
   product_manager: true
@@ -139,6 +156,10 @@ output:
   directory: output
   save_individual_responses: true
   save_final_report: true
+
+crew:
+  max_fix_iterations: 1
+  stop_on_no_major_issues: true
 ```
 
 ---

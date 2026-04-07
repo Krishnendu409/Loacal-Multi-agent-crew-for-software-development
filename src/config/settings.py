@@ -28,9 +28,35 @@ _DEFAULTS: dict[str, Any] = {
     "llm": {
         "model": "mistral",
         "base_url": "http://localhost:11434",
+        "retries": 1,
+        "timeout_seconds": 120,
         "options": {
-            "temperature": 0.7,
+            "temperature": 0.4,
             "num_predict": 2048,
+        },
+        "routing": {
+            "product_manager": "qwen2.5:7b-instruct",
+            "architect": "qwen2.5:7b-instruct",
+            "backend_developer": "qwen2.5-coder:7b",
+            "qa_engineer": "phi3:mini",
+            "code_reviewer": "phi3:mini",
+            "devops_engineer": "llama3.2:3b",
+        },
+        "fallbacks": {
+            "product_manager": ["llama3.2:3b"],
+            "architect": ["llama3.2:3b"],
+            "backend_developer": ["deepseek-coder:6.7b", "llama3.2:3b"],
+            "qa_engineer": ["llama3.2:3b"],
+            "code_reviewer": ["llama3.2:3b"],
+            "devops_engineer": ["phi3:mini"],
+        },
+        "role_options": {
+            "product_manager": {"num_predict": 1536, "temperature": 0.3},
+            "architect": {"num_predict": 1536, "temperature": 0.2},
+            "backend_developer": {"num_predict": 2048, "temperature": 0.2},
+            "qa_engineer": {"num_predict": 1024, "temperature": 0.1},
+            "code_reviewer": {"num_predict": 1024, "temperature": 0.1},
+            "devops_engineer": {"num_predict": 1024, "temperature": 0.2},
         },
     },
     "agents": {
@@ -45,6 +71,10 @@ _DEFAULTS: dict[str, Any] = {
         "directory": "output",
         "save_individual_responses": True,
         "save_final_report": True,
+    },
+    "crew": {
+        "max_fix_iterations": 1,
+        "stop_on_no_major_issues": True,
     },
 }
 

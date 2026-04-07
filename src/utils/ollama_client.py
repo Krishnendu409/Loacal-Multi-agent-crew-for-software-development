@@ -6,6 +6,7 @@ easily swap backends in the future.
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 
@@ -30,26 +31,63 @@ class OllamaClient:
         model: str = "mistral",
         base_url: str = "http://localhost:11434",
         options: dict[str, Any] | None = None,
+        retries: int = 1,
+        timeout_seconds: int | None = None,
     ) -> None:
         self.model = model
         self.base_url = base_url
         self.options: dict[str, Any] = options or {}
+        self.retries = max(retries, 0)
+        self.timeout_seconds = timeout_seconds
 
-    def chat(self, system_prompt: str, user_message: str) -> str:
-        """Send a chat message and return the assistant's reply as a string."""
+    def _build_client(self):
         ollama = _get_ollama()
+        kwargs: dict[str, Any] = {"host": self.base_url}
+        if self.timeout_seconds:
+            kwargs["timeout"] = self.timeout_seconds
+        return ollama.Client(**kwargs)
 
-        # Build client pointing at the configured base URL
-        client = ollama.Client(host=self.base_url)
+    def chat(
+        self,
+        system_prompt: str,
+        user_message: str,
+        *,
+        model: str | None = None,
+        options: dict[str, Any] | None = None,
+        fallback_models: list[str] | None = None,
+    ) -> str:
+        """Send a chat message and return the assistant's reply as a string."""
+        client = self._build_client()
 
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": user_message})
 
-        response = client.chat(
-            model=self.model,
-            messages=messages,
-            options=self.options or None,
-        )
-        return response["message"]["content"]
+        merged_options = dict(self.options)
+        if options:
+            merged_options.update(options)
+
+        model_candidates = [model or self.model]
+        if fallback_models:
+            model_candidates.extend([m for m in fallback_models if m])
+
+        errors: list[str] = []
+        attempts = self.retries + 1
+        for candidate in model_candidates:
+            for attempt in range(1, attempts + 1):
+                try:
+                    response = client.chat(
+                        model=candidate,
+                        messages=messages,
+                        options=merged_options or None,
+                    )
+                    return response["message"]["content"]
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")
+                    if attempt < attempts:
+                        time.sleep(0.2)
+                    continue
+
+        error_text = "; ".join(errors) if errors else "unknown error"
+        raise RuntimeError(f"Ollama chat failed across model candidates: {error_text}")

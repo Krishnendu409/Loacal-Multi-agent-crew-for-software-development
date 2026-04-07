@@ -22,7 +22,7 @@ from src.agents.definitions import build_agents, AGENT_ORDER
 def mock_llm():
     """Return a mock OllamaClient that echoes the user message back."""
     llm = MagicMock()
-    llm.chat.side_effect = lambda system, user: f"[MOCK RESPONSE] {user[:80]}"
+    llm.chat.side_effect = lambda system, user, **kwargs: f"[MOCK RESPONSE] {user[:80]}"
     return llm
 
 
@@ -128,3 +128,19 @@ def test_build_agents_empty_when_all_disabled(mock_llm):
     enabled = {k: False for k in AGENT_ORDER}
     agents = build_agents(mock_llm, enabled=enabled)
     assert agents == []
+
+
+def test_build_agents_applies_role_routing_and_fallbacks(mock_llm):
+    enabled = {k: False for k in AGENT_ORDER}
+    enabled["backend_developer"] = True
+    llm_config = {
+        "routing": {"backend_developer": "qwen2.5-coder:7b"},
+        "fallbacks": {"backend_developer": ["deepseek-coder:6.7b", "llama3.2:3b"]},
+        "role_options": {"backend_developer": {"num_predict": 1024, "temperature": 0.2}},
+    }
+    agents = build_agents(mock_llm, enabled=enabled, llm_config=llm_config)
+    assert len(agents) == 1
+    agent = agents[0]
+    assert agent.llm_model == "qwen2.5-coder:7b"
+    assert agent.llm_fallback_models == ["deepseek-coder:6.7b", "llama3.2:3b"]
+    assert agent.llm_options == {"num_predict": 1024, "temperature": 0.2}

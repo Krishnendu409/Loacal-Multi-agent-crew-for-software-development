@@ -14,11 +14,42 @@ if TYPE_CHECKING:
     from src.utils.ollama_client import OllamaClient
 
 
+def _apply_llm_role_config(
+    agent: Agent,
+    role_key: str,
+    llm_config: dict[str, object] | None,
+) -> Agent:
+    if not llm_config:
+        return agent
+
+    routing = llm_config.get("routing", {})
+    if isinstance(routing, dict):
+        model = routing.get(role_key)
+        if isinstance(model, str) and model.strip():
+            agent.llm_model = model.strip()
+
+    fallbacks = llm_config.get("fallbacks", {})
+    if isinstance(fallbacks, dict):
+        role_fallbacks = fallbacks.get(role_key, [])
+        if isinstance(role_fallbacks, list):
+            agent.llm_fallback_models = [
+                m.strip() for m in role_fallbacks if isinstance(m, str) and m.strip()
+            ]
+
+    role_options = llm_config.get("role_options", {})
+    if isinstance(role_options, dict):
+        options = role_options.get(role_key, {})
+        if isinstance(options, dict):
+            agent.llm_options = options
+
+    return agent
+
+
 # ---------------------------------------------------------------------------
 # Agent factories
 # ---------------------------------------------------------------------------
 
-def _product_manager(llm: "OllamaClient") -> Agent:
+def _product_manager(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="Product Manager",
         goal=(
@@ -46,7 +77,7 @@ def _product_manager(llm: "OllamaClient") -> Agent:
     )
 
 
-def _architect(llm: "OllamaClient") -> Agent:
+def _architect(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="Software Architect",
         goal=(
@@ -73,7 +104,7 @@ def _architect(llm: "OllamaClient") -> Agent:
     )
 
 
-def _backend_developer(llm: "OllamaClient") -> Agent:
+def _backend_developer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="Backend Developer",
         goal=(
@@ -92,12 +123,13 @@ def _backend_developer(llm: "OllamaClient") -> Agent:
             "1. **Implementation Plan** – what you will build and why\n"
             "2. **Code** – complete, runnable source files in fenced code blocks\n"
             "3. **Setup Instructions** – how to install dependencies and run the code\n"
-            "4. **Known Limitations** – anything not yet implemented"
+            "4. **Known Limitations** – anything not yet implemented\n"
+            "5. **Checklist Coverage** – explicitly map each must-address item to a fix"
         ),
     )
 
 
-def _qa_engineer(llm: "OllamaClient") -> Agent:
+def _qa_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="QA Engineer",
         goal=(
@@ -116,12 +148,14 @@ def _qa_engineer(llm: "OllamaClient") -> Agent:
             "2. **Test Cases** – table or numbered list with: ID, description, steps, expected result\n"
             "3. **Automated Tests** – concrete test code in fenced code blocks\n"
             "4. **Edge Cases & Negative Tests** – what should fail gracefully\n"
-            "5. **Quality Concerns** – bugs or gaps spotted in the implementation"
+            "5. **Quality Concerns** – bugs or gaps spotted in the implementation\n"
+            "6. **Must-Address Checklist** – bullet list where each item starts with "
+            "[Critical], [Major], or [Minor]"
         ),
     )
 
 
-def _code_reviewer(llm: "OllamaClient") -> Agent:
+def _code_reviewer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="Code Reviewer",
         goal=(
@@ -142,12 +176,14 @@ def _code_reviewer(llm: "OllamaClient") -> Agent:
             "3. **Issues** – severity (Critical / Major / Minor), location, description, suggestion\n"
             "4. **Security Review** – any vulnerabilities or concerns\n"
             "5. **Performance Review** – bottlenecks or inefficiencies\n"
-            "6. **Final Recommendations** – ordered list of the most important actions"
+            "6. **Final Recommendations** – ordered list of the most important actions\n"
+            "7. **Must-Address Checklist** – bullet list where each item starts with "
+            "[Critical], [Major], or [Minor]"
         ),
     )
 
 
-def _devops_engineer(llm: "OllamaClient") -> Agent:
+def _devops_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="DevOps Engineer",
         goal=(
@@ -199,6 +235,7 @@ AGENT_ORDER = [
 def build_agents(
     llm: "OllamaClient",
     enabled: dict[str, bool] | None = None,
+    llm_config: dict[str, object] | None = None,
 ) -> list[Agent]:
     """Return an ordered list of *Agent* instances for the enabled roles.
 
@@ -215,5 +252,7 @@ def build_agents(
     for key in AGENT_ORDER:
         if enabled.get(key, False):
             factory = _AGENT_FACTORIES[key]
-            agents.append(factory(llm))
+            agent = factory(llm, llm_config)
+            agent = _apply_llm_role_config(agent, key, llm_config)
+            agents.append(agent)
     return agents

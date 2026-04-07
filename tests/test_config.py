@@ -46,7 +46,13 @@ def test_deep_merge_does_not_mutate_base():
 def test_load_config_returns_defaults_when_no_file(tmp_path):
     cfg = load_config(tmp_path / "nonexistent.yaml")
     assert cfg["llm"]["model"] == "mistral"
+    assert cfg["llm"]["routing"]["backend_developer"] == "qwen2.5-coder:7b"
+    assert cfg["llm"]["fallbacks"]["backend_developer"] == [
+        "deepseek-coder:6.7b",
+        "llama3.2:3b",
+    ]
     assert cfg["agents"]["product_manager"] is True
+    assert cfg["crew"]["max_fix_iterations"] == 1
     assert cfg["output"]["save_final_report"] is True
 
 

@@ -8,11 +8,12 @@ to the next one, mimicking real team communication.
 from __future__ import annotations
 
 import datetime
-import os
+import re
 from pathlib import Path
 from typing import Any
 
 from src.agents.base_agent import Agent
+from src.agents.definitions import AGENT_ORDER
 from src.tasks.software_dev_tasks import TASKS, Task
 from src.utils import display
 
@@ -43,11 +44,15 @@ class DevCrew:
         output_dir: str | Path = "output",
         save_individual: bool = True,
         save_report: bool = True,
+        max_fix_iterations: int = 1,
+        stop_on_no_major_issues: bool = True,
     ) -> None:
         self.agents = agents
         self.output_dir = Path(output_dir)
         self.save_individual = save_individual
         self.save_report = save_report
+        self.max_fix_iterations = max(0, max_fix_iterations)
+        self.stop_on_no_major_issues = stop_on_no_major_issues
 
     # ------------------------------------------------------------------
     # Public API
@@ -62,30 +67,91 @@ class DevCrew:
         """
         outputs: dict[str, str] = {}
         context_parts: list[str] = []
+        completed_roles: set[str] = set()
 
-        for i, agent in enumerate(self.agents):
-            task = self._get_task(agent)
-            display.print_agent_start(agent.role, task.title)
+        role_to_agent = {agent.role: agent for agent in self.agents}
 
-            # Build accumulated context string from all previous agent outputs
-            context = self._build_context(context_parts)
+        # Round 1: PM -> Architect -> Backend Developer
+        for role in ["Product Manager", "Software Architect", "Backend Developer"]:
+            agent = role_to_agent.get(role)
+            if agent is None:
+                continue
+            self._execute_agent(
+                agent=agent,
+                requirements=requirements,
+                context_parts=context_parts,
+                outputs=outputs,
+                project_name=project_name,
+            )
+            completed_roles.add(role)
 
-            # Execute the agent
-            task_description = task.render(requirements=requirements)
-            response = agent.execute(task_description, context=context)
+        # Round 2/3: QA + Reviewer findings, then Backend fix pass (bounded)
+        qa_agent = role_to_agent.get("QA Engineer")
+        reviewer_agent = role_to_agent.get("Code Reviewer")
+        backend_agent = role_to_agent.get("Backend Developer")
+        must_address: list[str] = []
 
-            outputs[agent.role] = response
-            context_parts.append(self._format_context_entry(agent.role, response))
+        if qa_agent or reviewer_agent:
+            for iteration in range(self.max_fix_iterations + 1):
+                round_findings: list[str] = []
+                for review_agent in [qa_agent, reviewer_agent]:
+                    if review_agent is None:
+                        continue
+                    response = self._execute_agent(
+                        agent=review_agent,
+                        requirements=requirements,
+                        context_parts=context_parts,
+                        outputs=outputs,
+                        project_name=project_name,
+                        must_address=must_address if must_address else None,
+                    )
+                    completed_roles.add(review_agent.role)
+                    round_findings.extend(self._extract_must_address(response))
 
-            display.print_agent_response(agent.role, response)
+                if not round_findings:
+                    break
 
-            # Show handoff arrow to the next agent
-            if i < len(self.agents) - 1:
-                display.print_handoff(agent.role, self.agents[i + 1].role)
+                must_address = round_findings
 
-            # Optionally persist to disk
-            if self.save_individual:
-                self._save_response(project_name, agent.role, response)
+                if self.stop_on_no_major_issues and not self._has_blocking_issues(must_address):
+                    break
+
+                if backend_agent is None or iteration >= self.max_fix_iterations:
+                    break
+
+                fix_task = self._render_fix_task(requirements=requirements, iteration=iteration + 1)
+                self._execute_agent(
+                    agent=backend_agent,
+                    requirements=requirements,
+                    context_parts=context_parts,
+                    outputs=outputs,
+                    project_name=project_name,
+                    task_description=fix_task,
+                    must_address=must_address,
+                )
+                completed_roles.add(backend_agent.role)
+
+        # Run any remaining enabled agents (e.g., DevOps) in standard order
+        ordered_agents = sorted(
+            self.agents,
+            key=lambda a: AGENT_ORDER.index(_ROLE_TO_TASK_KEY.get(a.role, "devops_engineer")),
+        )
+        previous_role: str | None = None
+        for agent in ordered_agents:
+            if agent.role in completed_roles:
+                previous_role = agent.role
+                continue
+            if previous_role:
+                display.print_handoff(previous_role, agent.role)
+            self._execute_agent(
+                agent=agent,
+                requirements=requirements,
+                context_parts=context_parts,
+                outputs=outputs,
+                project_name=project_name,
+            )
+            completed_roles.add(agent.role)
+            previous_role = agent.role
 
         display.print_final_summary(outputs)
 
@@ -112,9 +178,92 @@ class DevCrew:
     def _build_context(parts: list[str]) -> str:
         return "\n\n".join(parts)
 
+    @classmethod
+    def _format_context_entry(cls, role: str, response: str) -> str:
+        summary = cls._summarize_response(response)
+        return f"### {role}\n\n{summary}"
+
     @staticmethod
-    def _format_context_entry(role: str, response: str) -> str:
-        return f"### {role}\n\n{response}"
+    def _summarize_response(response: str, max_chars: int = 900) -> str:
+        cleaned = " ".join(response.split())
+        if len(cleaned) <= max_chars:
+            return cleaned
+        return cleaned[: max_chars - 1] + "…"
+
+    @staticmethod
+    def _extract_must_address(response: str) -> list[str]:
+        findings: list[str] = []
+        lines = [line.strip() for line in response.splitlines() if line.strip()]
+        capture = False
+        for line in lines:
+            lower = line.lower()
+            if "must-address checklist" in lower:
+                capture = True
+                continue
+            if capture and lower.startswith("#"):
+                capture = False
+            if capture and line.startswith(("-", "*")):
+                findings.append(line.lstrip("-* ").strip())
+                continue
+            if re.search(r"\[(critical|major|minor)\]", lower):
+                findings.append(line)
+        # Deduplicate while preserving order
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for item in findings:
+            if item in seen:
+                continue
+            seen.add(item)
+            deduped.append(item)
+        return deduped
+
+    @staticmethod
+    def _has_blocking_issues(findings: list[str]) -> bool:
+        for item in findings:
+            lower = item.lower()
+            if "[critical]" in lower or "[major]" in lower:
+                return True
+            if lower.startswith("critical:") or lower.startswith("major:"):
+                return True
+        return False
+
+    def _render_fix_task(self, requirements: str, iteration: int) -> str:
+        return (
+            f"Fix pass #{iteration}: Address only QA/Reviewer checklist items for the "
+            "current implementation. Keep architecture unchanged. Update code and setup "
+            "instructions as needed. Be explicit about what was fixed and what remains.\n\n"
+            f"Original requirements:\n---\n{requirements}\n---"
+        )
+
+    def _execute_agent(
+        self,
+        *,
+        agent: Agent,
+        requirements: str,
+        context_parts: list[str],
+        outputs: dict[str, str],
+        project_name: str,
+        task_description: str | None = None,
+        must_address: list[str] | None = None,
+    ) -> str:
+        task = self._get_task(agent) if task_description is None else None
+        title = task.title if task else "Remediate QA/Reviewer issues"
+        display.print_agent_start(agent.role, title)
+
+        context = self._build_context(context_parts)
+        rendered_task = task_description or task.render(requirements=requirements)
+        response = agent.execute(
+            rendered_task,
+            context=context,
+            requirements=requirements,
+            must_address=must_address,
+        )
+        outputs[agent.role] = response
+        context_parts.append(self._format_context_entry(agent.role, response))
+        display.print_agent_response(agent.role, response)
+        if self.save_individual:
+            self._save_response(project_name, agent.role, response)
+        return response
 
     # ------------------------------------------------------------------
     # File I/O

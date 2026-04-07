@@ -36,7 +36,8 @@ TASKS: dict[str, Task] = {
             "Your job is to analyse these requirements thoroughly and produce a complete "
             "product specification document.  Make sure every ambiguity is resolved or "
             "explicitly flagged.  The specification will be handed directly to the "
-            "Software Architect, so it must be precise and actionable."
+            "Software Architect, so it must be precise and actionable.  Keep sections "
+            "structured and concise so later agents can consume a compact summary."
         ),
     ),
     "architect": Task(
@@ -47,7 +48,7 @@ TASKS: dict[str, Task] = {
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Choose the simplest architecture that meets the requirements.  Document "
             "your technology choices with clear reasoning.  The Backend Developer "
-            "will implement the system based on your design."
+            "will implement the system based on your design.  Include clear trade-offs."
         ),
     ),
     "backend_developer": Task(
@@ -57,7 +58,8 @@ TASKS: dict[str, Task] = {
             "implement the backend or core application code.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Write complete, working, well-commented code.  Include all necessary "
-            "files and a clear setup guide.  The QA Engineer will test your code next."
+            "files and a clear setup guide.  The QA Engineer will test your code next. "
+            "If a must-address checklist is provided, fix only those items."
         ),
     ),
     "qa_engineer": Task(
@@ -67,7 +69,8 @@ TASKS: dict[str, Task] = {
             "a comprehensive test plan.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Write concrete automated tests that verify the most important behaviours. "
-            "Highlight any bugs or quality concerns you find in the implementation."
+            "Highlight any bugs or quality concerns you find in the implementation. "
+            "Provide a must-address checklist with severity tags."
         ),
     ),
     "code_reviewer": Task(
@@ -78,7 +81,7 @@ TASKS: dict[str, Task] = {
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Perform a thorough review.  Be specific: cite file/line when possible, "
             "explain *why* something is an issue, and always provide a concrete "
-            "improvement suggestion."
+            "improvement suggestion.  End with a must-address checklist with severities."
         ),
     ),
     "devops_engineer": Task(

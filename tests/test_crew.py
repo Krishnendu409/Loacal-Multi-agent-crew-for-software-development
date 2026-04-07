@@ -149,3 +149,37 @@ def test_safe_filename_lowercases():
 
 def test_safe_filename_keeps_alphanumeric_and_dash_underscore():
     assert _safe_filename("my-project_v2") == "my-project_v2"
+
+
+def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
+    roles = [
+        "Product Manager",
+        "Software Architect",
+        "Backend Developer",
+        "QA Engineer",
+        "Code Reviewer",
+    ]
+    agents = [_make_mock_agent(r) for r in roles]
+    for agent in agents:
+        if agent.role == "QA Engineer":
+            agent.llm.chat.return_value = (
+                "## Must-Address Checklist\n"
+                "- [Major] Add validation for empty payload.\n"
+            )
+        elif agent.role == "Code Reviewer":
+            agent.llm.chat.return_value = (
+                "## Must-Address Checklist\n"
+                "- [Minor] Improve naming consistency.\n"
+            )
+    crew = DevCrew(
+        agents=agents,
+        output_dir=tmp_path,
+        max_fix_iterations=1,
+        stop_on_no_major_issues=True,
+    )
+    crew.kickoff("Build API", project_name="api_project")
+
+    backend = next(a for a in agents if a.role == "Backend Developer")
+    assert backend.llm.chat.call_count == 2
+    second_call_user_message = backend.llm.chat.call_args_list[1][0][1]
+    assert "Must-Address Checklist" in second_call_user_message
