@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src.agents.base_agent import Agent
+from src.skills import resolve_agent_skills
 
 if TYPE_CHECKING:
     from src.utils.ollama_client import OllamaClient
@@ -42,6 +43,17 @@ def _apply_llm_role_config(
         if isinstance(options, dict):
             agent.llm_options = options
 
+    return agent
+
+
+def _apply_skill_config(
+    agent: Agent,
+    role_key: str,
+    skills_config: dict[str, object] | None,
+) -> Agent:
+    agent.skills = resolve_agent_skills(role_key, skills_config)
+    if skills_config and "enforce_handoff_sections" in skills_config:
+        agent.enforce_handoff_sections = bool(skills_config.get("enforce_handoff_sections"))
     return agent
 
 
@@ -236,6 +248,7 @@ def build_agents(
     llm: "OllamaClient",
     enabled: dict[str, bool] | None = None,
     llm_config: dict[str, object] | None = None,
+    skills_config: dict[str, object] | None = None,
 ) -> list[Agent]:
     """Return an ordered list of *Agent* instances for the enabled roles.
 
@@ -254,5 +267,6 @@ def build_agents(
             factory = _AGENT_FACTORIES[key]
             agent = factory(llm, llm_config)
             agent = _apply_llm_role_config(agent, key, llm_config)
+            agent = _apply_skill_config(agent, key, skills_config)
             agents.append(agent)
     return agents

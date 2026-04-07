@@ -130,7 +130,12 @@ def run(
     if model:
         llm_for_agents["routing"] = {k: model for k in cfg["agents"].keys()}
         llm_for_agents["fallbacks"] = {}
-    agents = build_agents(llm, enabled=cfg["agents"], llm_config=llm_for_agents)
+    agents = build_agents(
+        llm,
+        enabled=cfg["agents"],
+        llm_config=llm_for_agents,
+        skills_config=cfg.get("skills", {}),
+    )
     if not agents:
         display.print_error(
             "No agents are enabled.  Check the 'agents' section in config.yaml."

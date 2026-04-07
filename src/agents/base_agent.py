@@ -25,6 +25,8 @@ class Agent:
     llm: "OllamaClient"
     # Extra per-agent instructions injected into every system prompt
     extra_instructions: str = ""
+    skills: list[str] = field(default_factory=list)
+    enforce_handoff_sections: bool = True
     llm_model: str | None = None
     llm_options: dict[str, object] = field(default_factory=dict)
     llm_fallback_models: list[str] = field(default_factory=list)
@@ -39,6 +41,17 @@ class Agent:
                 "use proper fenced code blocks with a language tag, e.g. ```python."
             ),
         ]
+        if self.skills:
+            skill_lines = "\n".join(f"- {skill}" for skill in self.skills)
+            parts.append(f"Apply these operational skills in your response:\n{skill_lines}")
+        if self.enforce_handoff_sections:
+            parts.append(
+                "Use this communication contract in every response with clear headings:\n"
+                "1. Summary\n"
+                "2. Key Decisions\n"
+                "3. Risks / Open Questions\n"
+                "4. Handoff Notes for Next Role"
+            )
         if self.extra_instructions:
             parts.append(self.extra_instructions)
         return "\n\n".join(parts)

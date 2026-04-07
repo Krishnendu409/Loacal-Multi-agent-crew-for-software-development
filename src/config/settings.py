@@ -76,6 +76,17 @@ _DEFAULTS: dict[str, Any] = {
         "max_fix_iterations": 1,
         "stop_on_no_major_issues": True,
     },
+    "skills": {
+        "include_default_role_skills": True,
+        "enforce_handoff_sections": True,
+        "shared": [
+            "structured communication",
+            "security-first thinking",
+            "verification mindset",
+            "documentation discipline",
+        ],
+        "per_role": {},
+    },
 }
 
 
