@@ -71,7 +71,7 @@ TASKS: dict[str, Task] = {
             "Review the implementation produced by the Backend Developer and create "
             "a comprehensive test plan.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
-            "Write concrete automated tests that verify the most important behaviours. "
+            "Write concrete automated tests that verify the most important behaviors. "
             "Highlight any bugs or quality concerns you find in the implementation. "
             "Provide a must-address checklist with severity tags and end with an "
             "explicit handoff note for the Backend Developer."
