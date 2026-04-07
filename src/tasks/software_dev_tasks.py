@@ -27,6 +27,28 @@ class Task:
 # ---------------------------------------------------------------------------
 
 TASKS: dict[str, Task] = {
+    "ceo_planner": Task(
+        title="Create strategic execution plan from the user's problem statement",
+        description=(
+            "You are the first planning authority. Convert the stakeholder problem statement "
+            "into a concrete strategy and delivery sequence.\n\n"
+            "Raw stakeholder problem statement:\n---\n{requirements}\n---\n\n"
+            "Define clear goals, trade-offs, risks, and explicit decision options for the user. "
+            "Your output must enable a go/no-go decision before implementation starts. "
+            "End with an explicit handoff note for the Market Researcher."
+        ),
+    ),
+    "market_researcher": Task(
+        title="Research market gaps and competitor positioning",
+        description=(
+            "Using the stakeholder requirements and strategy draft, produce market-oriented "
+            "analysis that improves product direction.\n\n"
+            "Original requirements:\n---\n{requirements}\n---\n\n"
+            "Identify user segments, competing approaches, and market gaps. Recommend how this "
+            "project should differentiate in practical terms. End with an explicit handoff note "
+            "for the Product Manager."
+        ),
+    ),
     "product_manager": Task(
         title="Analyse requirements and write product specification",
         description=(
@@ -63,6 +85,18 @@ TASKS: dict[str, Task] = {
             "files and a clear setup guide.  The QA Engineer will test your code next. "
             "If a must-address checklist is provided, fix only those items. End with "
             "an explicit handoff note for QA and Code Review."
+        ),
+    ),
+    "frontend_developer": Task(
+        title="Design and implement frontend UX/UI",
+        description=(
+            "Based on the strategy, product specification, and architecture design, "
+            "implement the frontend user experience.\n\n"
+            "Original requirements:\n---\n{requirements}\n---\n\n"
+            "Provide production-quality UI structure, component logic, and clear interaction "
+            "flows. Ensure responsiveness, accessibility, and error handling paths. "
+            "If a must-address checklist is provided, fix only those items. End with "
+            "an explicit handoff note for Backend, QA, and Code Review."
         ),
     ),
     "qa_engineer": Task(

@@ -15,8 +15,11 @@ console = Console()
 
 # Role → colour mapping so each agent has a distinct look
 _ROLE_COLOURS: dict[str, str] = {
+    "CEO Planner": "bright_cyan",
+    "Market Researcher": "bright_blue",
     "Product Manager": "cyan",
     "Software Architect": "magenta",
+    "Frontend Developer": "bright_magenta",
     "Backend Developer": "green",
     "QA Engineer": "yellow",
     "Code Reviewer": "blue",
@@ -24,8 +27,11 @@ _ROLE_COLOURS: dict[str, str] = {
 }
 
 _ROLE_EMOJIS: dict[str, str] = {
+    "CEO Planner": "🧭",
+    "Market Researcher": "📈",
     "Product Manager": "📋",
     "Software Architect": "🏗️",
+    "Frontend Developer": "🎨",
     "Backend Developer": "💻",
     "QA Engineer": "🧪",
     "Code Reviewer": "🔍",

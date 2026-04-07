@@ -6,6 +6,18 @@ from src.skills.ecc_pack import ecc_conflicts_map, ecc_priority_map, resolve_ecc
 
 
 ROLE_DEFAULT_SKILLS: dict[str, list[str]] = {
+    "ceo_planner": [
+        "strategic planning",
+        "problem framing",
+        "prioritization under constraints",
+        "decision-gate facilitation",
+    ],
+    "market_researcher": [
+        "market gap analysis",
+        "competitive benchmarking",
+        "user segment analysis",
+        "differentiation strategy",
+    ],
     "product_manager": [
         "requirements decomposition",
         "scope management",
@@ -23,6 +35,12 @@ ROLE_DEFAULT_SKILLS: dict[str, list[str]] = {
         "defensive programming",
         "secure coding",
         "testability-first implementation",
+    ],
+    "frontend_developer": [
+        "ui architecture",
+        "accessibility-first design",
+        "responsive design systems",
+        "frontend performance optimization",
     ],
     "qa_engineer": [
         "test strategy design",

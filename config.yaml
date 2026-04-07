@@ -5,40 +5,52 @@ llm:
   # Global fallback model. Per-role routing below takes priority.
   # Recommended free models (install via `ollama pull <model>`):
   #   - qwen2.5:7b-instruct
-  #   - qwen2.5-coder:7b
   #   - deepseek-coder:6.7b
   #   - phi3:mini
-  #   - llama3.2:3b
-  model: mistral
+  model: qwen2.5:7b-instruct
   # Ollama server URL (default local)
   base_url: http://localhost:11434
   # Retry and timeout controls (for constrained laptops)
   retries: 1
   timeout_seconds: 120
+  # Enforce a strict three-model setup
+  allowed_models:
+    - qwen2.5:7b-instruct
+    - deepseek-coder:6.7b
+    - phi3:mini
   # Generation options
   options:
     temperature: 0.4
     num_predict: 2048
   # Role-specific model routing (keeps same team structure, better local quality)
   routing:
+    ceo_planner: qwen2.5:7b-instruct
+    market_researcher: qwen2.5:7b-instruct
     product_manager: qwen2.5:7b-instruct
     architect: qwen2.5:7b-instruct
-    backend_developer: qwen2.5-coder:7b
+    frontend_developer: deepseek-coder:6.7b
+    backend_developer: deepseek-coder:6.7b
     qa_engineer: phi3:mini
     code_reviewer: phi3:mini
-    devops_engineer: llama3.2:3b
+    devops_engineer: deepseek-coder:6.7b
   # Fallbacks used if the primary model fails for a role
   fallbacks:
-    product_manager: [llama3.2:3b]
-    architect: [llama3.2:3b]
-    backend_developer: [deepseek-coder:6.7b, llama3.2:3b]
-    qa_engineer: [llama3.2:3b]
-    code_reviewer: [llama3.2:3b]
-    devops_engineer: [phi3:mini]
+    ceo_planner: [phi3:mini]
+    market_researcher: [phi3:mini]
+    product_manager: [phi3:mini]
+    architect: [phi3:mini]
+    frontend_developer: [qwen2.5:7b-instruct]
+    backend_developer: [qwen2.5:7b-instruct]
+    qa_engineer: [qwen2.5:7b-instruct]
+    code_reviewer: [qwen2.5:7b-instruct]
+    devops_engineer: [qwen2.5:7b-instruct]
   # Optional per-role generation tuning
   role_options:
+    ceo_planner: {temperature: 0.3, num_predict: 1536}
+    market_researcher: {temperature: 0.2, num_predict: 1536}
     product_manager: {temperature: 0.3, num_predict: 1536}
     architect: {temperature: 0.2, num_predict: 1536}
+    frontend_developer: {temperature: 0.2, num_predict: 2048}
     backend_developer: {temperature: 0.2, num_predict: 2048}
     qa_engineer: {temperature: 0.1, num_predict: 1024}
     code_reviewer: {temperature: 0.1, num_predict: 1024}
@@ -46,8 +58,11 @@ llm:
 
 agents:
   # Toggle which agents participate in the crew
+  ceo_planner: true
+  market_researcher: true
   product_manager: true
   architect: true
+  frontend_developer: true
   backend_developer: true
   qa_engineer: true
   code_reviewer: true
@@ -62,9 +77,10 @@ output:
   save_final_report: true
 
 crew:
-  # Single remediation pass: Dev -> QA/Reviewer -> Dev fix pass
+  # Strategy gate + remediation pass: planning -> approval -> build -> QA/Reviewer -> fix
   max_fix_iterations: 1
   stop_on_no_major_issues: true
+  require_strategy_approval: true
 
 skills:
   # Enable built-in role skill packs and shared communication standards
@@ -88,6 +104,7 @@ skills:
     - documentation discipline
   # Optional per-role additions (keys match the `agents` section)
   per_role:
+    frontend_developer: [ui consistency and accessibility]
     backend_developer: [dependency hygiene]
     qa_engineer: [risk-based test prioritization]
   # Optional global and per-role explicit includes

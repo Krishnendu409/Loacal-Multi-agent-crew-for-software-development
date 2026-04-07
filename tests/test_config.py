@@ -45,14 +45,20 @@ def test_deep_merge_does_not_mutate_base():
 
 def test_load_config_returns_defaults_when_no_file(tmp_path):
     cfg = load_config(tmp_path / "nonexistent.yaml")
-    assert cfg["llm"]["model"] == "mistral"
-    assert cfg["llm"]["routing"]["backend_developer"] == "qwen2.5-coder:7b"
+    assert cfg["llm"]["model"] == "qwen2.5:7b-instruct"
+    assert cfg["llm"]["routing"]["backend_developer"] == "deepseek-coder:6.7b"
     assert cfg["llm"]["fallbacks"]["backend_developer"] == [
-        "deepseek-coder:6.7b",
-        "llama3.2:3b",
+        "qwen2.5:7b-instruct",
     ]
+    assert cfg["llm"]["allowed_models"] == [
+        "qwen2.5:7b-instruct",
+        "deepseek-coder:6.7b",
+        "phi3:mini",
+    ]
+    assert cfg["agents"]["ceo_planner"] is True
     assert cfg["agents"]["product_manager"] is True
     assert cfg["crew"]["max_fix_iterations"] == 1
+    assert cfg["crew"]["require_strategy_approval"] is True
     assert cfg["output"]["save_final_report"] is True
     assert cfg["skills"]["include_default_role_skills"] is True
     assert cfg["skills"]["enforce_handoff_sections"] is True
@@ -97,7 +103,7 @@ def test_load_config_handles_empty_file(tmp_path):
     config_file = tmp_path / "config.yaml"
     config_file.write_text("")
     cfg = load_config(config_file)
-    assert cfg["llm"]["model"] == "mistral"
+    assert cfg["llm"]["model"] == "qwen2.5:7b-instruct"
 
 
 def test_load_config_handles_invalid_yaml_type(tmp_path):
@@ -105,4 +111,4 @@ def test_load_config_handles_invalid_yaml_type(tmp_path):
     config_file = tmp_path / "config.yaml"
     config_file.write_text("- item1\n- item2\n")
     cfg = load_config(config_file)
-    assert cfg["llm"]["model"] == "mistral"
+    assert cfg["llm"]["model"] == "qwen2.5:7b-instruct"

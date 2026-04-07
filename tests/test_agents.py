@@ -108,6 +108,8 @@ def test_build_agents_default_excludes_devops(mock_llm):
     agents = build_agents(mock_llm)
     roles = [a.role for a in agents]
     assert "DevOps Engineer" not in roles
+    assert "CEO Planner" in roles
+    assert "Market Researcher" in roles
     assert "Product Manager" in roles
 
 
@@ -130,8 +132,11 @@ def test_build_agents_preserves_order(mock_llm):
     enabled = {k: True for k in AGENT_ORDER}
     agents = build_agents(mock_llm, enabled=enabled)
     expected_order = [
+        "CEO Planner",
+        "Market Researcher",
         "Product Manager",
         "Software Architect",
+        "Frontend Developer",
         "Backend Developer",
         "QA Engineer",
         "Code Reviewer",
@@ -150,16 +155,31 @@ def test_build_agents_applies_role_routing_and_fallbacks(mock_llm):
     enabled = {k: False for k in AGENT_ORDER}
     enabled["backend_developer"] = True
     llm_config = {
-        "routing": {"backend_developer": "qwen2.5-coder:7b"},
-        "fallbacks": {"backend_developer": ["deepseek-coder:6.7b", "llama3.2:3b"]},
+        "routing": {"backend_developer": "deepseek-coder:6.7b"},
+        "fallbacks": {"backend_developer": ["qwen2.5:7b-instruct", "phi3:mini"]},
         "role_options": {"backend_developer": {"num_predict": 1024, "temperature": 0.2}},
     }
     agents = build_agents(mock_llm, enabled=enabled, llm_config=llm_config)
     assert len(agents) == 1
     agent = agents[0]
-    assert agent.llm_model == "qwen2.5-coder:7b"
-    assert agent.llm_fallback_models == ["deepseek-coder:6.7b", "llama3.2:3b"]
+    assert agent.llm_model == "deepseek-coder:6.7b"
+    assert agent.llm_fallback_models == ["qwen2.5:7b-instruct", "phi3:mini"]
     assert agent.llm_options == {"num_predict": 1024, "temperature": 0.2}
+
+
+def test_build_agents_filters_models_against_allow_list(mock_llm):
+    enabled = {k: False for k in AGENT_ORDER}
+    enabled["backend_developer"] = True
+    llm_config = {
+        "allowed_models": ["qwen2.5:7b-instruct", "deepseek-coder:6.7b", "phi3:mini"],
+        "routing": {"backend_developer": "llama3.2:3b"},
+        "fallbacks": {"backend_developer": ["deepseek-coder:6.7b", "mistral"]},
+    }
+    agents = build_agents(mock_llm, enabled=enabled, llm_config=llm_config)
+    assert len(agents) == 1
+    agent = agents[0]
+    assert agent.llm_model is None
+    assert agent.llm_fallback_models == ["deepseek-coder:6.7b"]
 
 
 def test_build_agents_applies_skill_config(mock_llm):

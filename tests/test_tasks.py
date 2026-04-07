@@ -9,8 +9,11 @@ from src.tasks.software_dev_tasks import TASKS, Task
 
 def test_all_expected_tasks_exist():
     expected_keys = {
+        "ceo_planner",
+        "market_researcher",
         "product_manager",
         "architect",
+        "frontend_developer",
         "backend_developer",
         "qa_engineer",
         "code_reviewer",

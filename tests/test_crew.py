@@ -39,10 +39,13 @@ def minimal_crew(tmp_path):
 
 @pytest.fixture()
 def full_crew(tmp_path):
-    """A crew with all 5 main agents."""
+    """A crew with all main product+engineering agents."""
     roles = [
+        "CEO Planner",
+        "Market Researcher",
         "Product Manager",
         "Software Architect",
+        "Frontend Developer",
         "Backend Developer",
         "QA Engineer",
         "Code Reviewer",
@@ -64,8 +67,11 @@ def full_crew(tmp_path):
 def test_kickoff_returns_dict_with_all_roles(full_crew):
     outputs = full_crew.kickoff("Build a chat app", project_name="test_project")
     assert set(outputs.keys()) == {
+        "CEO Planner",
+        "Market Researcher",
         "Product Manager",
         "Software Architect",
+        "Frontend Developer",
         "Backend Developer",
         "QA Engineer",
         "Code Reviewer",
@@ -103,8 +109,8 @@ def test_kickoff_later_agents_receive_context(full_crew):
 def test_kickoff_saves_individual_files(full_crew, tmp_path):
     full_crew.kickoff("Build a chat app", project_name="test_project")
     md_files = list(tmp_path.rglob("*.md"))
-    # 5 individual files + 1 final report
-    assert len(md_files) >= 6
+    # 7 individual files + 1 final report
+    assert len(md_files) >= 8
 
 
 def test_kickoff_saves_final_report(full_crew, tmp_path):
@@ -153,8 +159,11 @@ def test_safe_filename_keeps_alphanumeric_and_dash_underscore():
 
 def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
     roles = [
+        "CEO Planner",
+        "Market Researcher",
         "Product Manager",
         "Software Architect",
+        "Frontend Developer",
         "Backend Developer",
         "QA Engineer",
         "Code Reviewer",
@@ -180,6 +189,32 @@ def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
     crew.kickoff("Build API", project_name="api_project")
 
     backend = next(a for a in agents if a.role == "Backend Developer")
+    frontend = next(a for a in agents if a.role == "Frontend Developer")
+    assert frontend.llm.chat.call_count == 2
     assert backend.llm.chat.call_count == 2
     second_call_user_message = backend.llm.chat.call_args_list[1][0][1]
     assert "Must-Address Checklist" in second_call_user_message
+
+
+def test_kickoff_with_strategy_gate_stops_when_not_approved(tmp_path):
+    roles = [
+        "CEO Planner",
+        "Market Researcher",
+        "Product Manager",
+        "Software Architect",
+        "Backend Developer",
+    ]
+    agents = [_make_mock_agent(r) for r in roles]
+    crew = DevCrew(agents=agents, output_dir=tmp_path)
+
+    approval_callback = MagicMock(return_value=False)
+    outputs = crew.kickoff_with_strategy_gate(
+        "Build API",
+        project_name="api_project",
+        require_strategy_approval=True,
+        strategy_approval_callback=approval_callback,
+    )
+    approval_callback.assert_called_once()
+    assert set(outputs.keys()) == {"CEO Planner", "Market Researcher", "Product Manager"}
+    architect = next(a for a in agents if a.role == "Software Architect")
+    assert architect.llm.chat.call_count == 0

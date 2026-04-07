@@ -15,6 +15,19 @@ if TYPE_CHECKING:
     from src.utils.ollama_client import OllamaClient
 
 
+def _allowed_models(llm_config: dict[str, object] | None) -> set[str]:
+    if not llm_config:
+        return set()
+    raw = llm_config.get("allowed_models", [])
+    if not isinstance(raw, list):
+        return set()
+    return {m.strip() for m in raw if isinstance(m, str) and m.strip()}
+
+
+def _model_is_allowed(model: str, allowed: set[str]) -> bool:
+    return not allowed or model in allowed
+
+
 def _apply_llm_role_config(
     agent: Agent,
     role_key: str,
@@ -23,10 +36,12 @@ def _apply_llm_role_config(
     if not llm_config:
         return agent
 
+    allowed = _allowed_models(llm_config)
+
     routing = llm_config.get("routing", {})
     if isinstance(routing, dict):
         model = routing.get(role_key)
-        if isinstance(model, str) and model.strip():
+        if isinstance(model, str) and model.strip() and _model_is_allowed(model.strip(), allowed):
             agent.llm_model = model.strip()
 
     fallbacks = llm_config.get("fallbacks", {})
@@ -34,7 +49,9 @@ def _apply_llm_role_config(
         role_fallbacks = fallbacks.get(role_key, [])
         if isinstance(role_fallbacks, list):
             agent.llm_fallback_models = [
-                m.strip() for m in role_fallbacks if isinstance(m, str) and m.strip()
+                m.strip()
+                for m in role_fallbacks
+                if isinstance(m, str) and m.strip() and _model_is_allowed(m.strip(), allowed)
             ]
 
     role_options = llm_config.get("role_options", {})
@@ -60,6 +77,54 @@ def _apply_skill_config(
 # ---------------------------------------------------------------------------
 # Agent factories
 # ---------------------------------------------------------------------------
+
+def _ceo_planner(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
+    return Agent(
+        role="CEO Planner",
+        goal=(
+            "Convert the user's raw problem statement into a strategy-first execution plan "
+            "with measurable outcomes and sequencing."
+        ),
+        backstory=(
+            "You are a founder-level strategy leader who aligns product direction, feasibility, "
+            "and delivery discipline. You force clarity before execution."
+        ),
+        llm=llm,
+        extra_instructions=(
+            "Structure your output as:\n"
+            "1. **Problem Framing** – clarified statement of the real problem\n"
+            "2. **Success Metrics** – concrete, measurable outcomes\n"
+            "3. **Execution Plan** – phased plan with priorities\n"
+            "4. **Risks & Dependencies** – what can block delivery\n"
+            "5. **Decision Gate for User** – explicit options and recommended path\n"
+            "6. **Handoff to Market Researcher** – what to validate externally"
+        ),
+    )
+
+
+def _market_researcher(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
+    return Agent(
+        role="Market Researcher",
+        goal=(
+            "Identify market gaps, competitor patterns, and positioning opportunities "
+            "to sharpen the product strategy."
+        ),
+        backstory=(
+            "You are a product strategy analyst focused on evidence-based market and "
+            "competitive insights that directly impact product choices."
+        ),
+        llm=llm,
+        extra_instructions=(
+            "Structure your output as:\n"
+            "1. **Target Users & Jobs-to-be-Done**\n"
+            "2. **Competitive Landscape** – strengths/weaknesses\n"
+            "3. **Market Gaps** – unmet needs worth targeting\n"
+            "4. **Differentiation Strategy** – where we can win\n"
+            "5. **Scope Recommendation** – MVP vs next iterations\n"
+            "6. **Handoff to Product Manager** – decisions to encode in requirements"
+        ),
+    )
+
 
 def _product_manager(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
@@ -137,6 +202,29 @@ def _backend_developer(llm: "OllamaClient", llm_config: dict[str, object] | None
             "3. **Setup Instructions** – how to install dependencies and run the code\n"
             "4. **Known Limitations** – anything not yet implemented\n"
             "5. **Checklist Coverage** – explicitly map each must-address item to a fix"
+        ),
+    )
+
+
+def _frontend_developer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
+    return Agent(
+        role="Frontend Developer",
+        goal=(
+            "Design and implement a high-quality frontend experience aligned with product "
+            "requirements, usability, and accessibility."
+        ),
+        backstory=(
+            "You are a Senior Frontend Engineer who balances UI architecture, performance, "
+            "component reusability, accessibility, and user-centered design."
+        ),
+        llm=llm,
+        extra_instructions=(
+            "Structure your output as:\n"
+            "1. **Frontend Plan** – pages/components/state strategy\n"
+            "2. **UX & Visual Design Decisions** – layout, interaction, accessibility\n"
+            "3. **Code** – complete frontend code in fenced blocks\n"
+            "4. **Integration Notes** – API contracts and error states\n"
+            "5. **Known Limitations** – what remains for iteration"
         ),
     )
 
@@ -225,8 +313,11 @@ def _devops_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) 
 # ---------------------------------------------------------------------------
 
 _AGENT_FACTORIES = {
+    "ceo_planner": _ceo_planner,
+    "market_researcher": _market_researcher,
     "product_manager": _product_manager,
     "architect": _architect,
+    "frontend_developer": _frontend_developer,
     "backend_developer": _backend_developer,
     "qa_engineer": _qa_engineer,
     "code_reviewer": _code_reviewer,
@@ -235,8 +326,11 @@ _AGENT_FACTORIES = {
 
 # Ordered list – defines the communication sequence in the crew
 AGENT_ORDER = [
+    "ceo_planner",
+    "market_researcher",
     "product_manager",
     "architect",
+    "frontend_developer",
     "backend_developer",
     "qa_engineer",
     "code_reviewer",
