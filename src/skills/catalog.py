@@ -128,6 +128,7 @@ def _apply_conflict_guardrails(skills: list[str], priority_map: dict[str, int]) 
         if not conflicting_existing:
             kept.append(skill)
             continue
+        # Equal priority keeps the first encountered skill for deterministic output.
         if any(priority_map.get(existing, 3) <= current_p for existing in conflicting_existing):
             continue
         for existing in conflicting_existing:
@@ -173,6 +174,8 @@ def _validate_strict_config(role_key: str, skills_config: dict[str, object] | No
 
     candidates = _clean(_extract_list(skills_config, "exclude"))
     candidates.extend(_clean(_extract_role_list(skills_config, "per_role_exclude", role_key)))
+    candidates.extend(_clean(_extract_list(skills_config, "include")))
+    candidates.extend(_clean(_extract_role_list(skills_config, "per_role_include", role_key)))
     for item in candidates:
         if item.lower() not in known:
             raise ValueError(

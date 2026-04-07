@@ -83,3 +83,14 @@ def test_resolve_agent_skills_strict_mode_rejects_unknown_references():
                 "exclude": ["not-a-real-skill"],
             },
         )
+
+
+def test_resolve_agent_skills_strict_mode_rejects_unknown_includes():
+    with pytest.raises(ValueError, match="Unknown skill reference"):
+        resolve_agent_skills(
+            "backend_developer",
+            {
+                "strict_mode": True,
+                "include": ["unknown-include-skill"],
+            },
+        )
