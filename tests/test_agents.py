@@ -110,8 +110,16 @@ def test_build_agents_default_excludes_devops(mock_llm):
     assert "DevOps Engineer" not in roles
     assert "CEO Planner" in roles
     assert "Market Researcher" in roles
+    assert "Customer Support/Feedback Analyst" in roles
+    assert "Compliance & Privacy Specialist" in roles
     assert "UI/UX Designer" in roles
+    assert "Database Engineer" in roles
+    assert "API Integration Engineer" in roles
     assert "Security Engineer" in roles
+    assert "Performance Engineer" in roles
+    assert "Technical Writer" in roles
+    assert "SRE / Reliability Engineer" in roles
+    assert "Release Manager" in roles
     assert "Product Manager" in roles
 
 
@@ -136,14 +144,23 @@ def test_build_agents_preserves_order(mock_llm):
     expected_order = [
         "CEO Planner",
         "Market Researcher",
+        "Customer Support/Feedback Analyst",
         "Product Manager",
+        "Compliance & Privacy Specialist",
         "Software Architect",
         "UI/UX Designer",
+        "Database Engineer",
+        "API Integration Engineer",
         "Frontend Developer",
         "Backend Developer",
+        "Data/Analytics Engineer",
+        "Performance Engineer",
         "Security Engineer",
         "QA Engineer",
         "Code Reviewer",
+        "Technical Writer",
+        "SRE / Reliability Engineer",
+        "Release Manager",
         "DevOps Engineer",
     ]
     assert [a.role for a in agents] == expected_order

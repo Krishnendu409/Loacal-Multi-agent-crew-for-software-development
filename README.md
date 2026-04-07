@@ -15,8 +15,8 @@ runtime.
 | 💻 **Runs locally** | Works on mid-range laptops (4 GB RAM minimum with `phi3` or `llama3.2`) |
 | 🗣️ **Agent communication** | Each agent reads compressed prior context + original requirements + QA/Reviewer checklists |
 | 🧠 **Built-in skill packs** | Shared + role-specific skills are injected into prompts, configurable in `config.yaml` |
-| 👥 **Full dev team** | CEO Planner → Market Researcher → PM → Architect → UI/UX → Frontend + Backend → Security → QA → Code Reviewer → DevOps (optional) |
-| 🔁 **Fix-pass loop** | Dev → QA/Reviewer → Dev remediation pass (bounded iterations) |
+| 👥 **Full dev team** | CEO Planner → Market Researcher → Customer Feedback → PM → Compliance → Architect → UI/UX → DB/API/FE/BE/Data → Performance/Security/QA/Review → Docs/SRE/Release → DevOps (optional) |
+| 🔁 **Fix-pass loop** | Implementation roles → Performance/Security/QA/Reviewer → targeted remediation pass (bounded iterations) |
 | 📄 **Saved outputs** | Every agent's response and a final compiled report saved to `output/` |
 | ⚙️ **Configurable** | Swap models, enable/disable agents, change output paths via `config.yaml` |
 
@@ -38,10 +38,23 @@ problem statement (you)
 └────────┬────────┘
          │  context
          ▼
+┌───────────────────────────────┐
+│Customer Support/Feedback Anal.│  Converts pain points into requirements
+└────────┬──────────────────────┘
+         │  context
+         ▼
 ┌─────────────────┐
-│  Product Manager│  Analyses requirements → product spec
+│  Product Manager│  Finalizes strategy + product spec
 └────────┬────────┘
          │  context
+         ▼
+┌───────────────────────────────┐
+│Compliance & Privacy Specialist│  Defines mandatory controls
+└────────┬──────────────────────┘
+         │
+         ▼
+     [USER APPROVAL GATE]
+         │
          ▼
 ┌─────────────────┐
 │   Architect     │  Designs system architecture
@@ -54,12 +67,32 @@ problem statement (you)
          │  context
          ▼
 ┌─────────────────┐
+│Database Engineer│  Defines schema/index/migration strategy
+└────────┬────────┘
+         │  context
+         ▼
+┌───────────────────────┐
+│API Integration Engineer│  Defines resilient API contracts
+└────────┬──────────────┘
+         │  context
+         ▼
+┌─────────────────┐
 │Frontend Developer│ Designs and builds UX/UI layer
 └────────┬────────┘
          │  context
          ▼
 ┌─────────────────┐
-│Backend Developer│  Implements the code
+│Backend Developer│  Implements core logic
+└────────┬────────┘
+         │  context
+         ▼
+┌────────────────────┐
+│Data/Analytics Eng. │  Defines KPI/event instrumentation
+└────────┬───────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│Performance Eng. │  Finds bottlenecks and tuning priorities
 └────────┬────────┘
          │  context
          ▼
@@ -76,6 +109,21 @@ problem statement (you)
 ┌─────────────────┐
 │  Code Reviewer  │  Reviews everything for quality & security
 └────────┬────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│Technical Writer │  Creates docs + runbooks
+└────────┬────────┘
+         │  context
+         ▼
+┌──────────────────────┐
+│SRE / Reliability Eng.│  Defines SLOs and incident readiness
+└────────┬─────────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│ Release Manager │  Final go/no-go release plan
+└────────┬────────┘
          │  (optional)
          ▼
 ┌─────────────────┐
@@ -84,9 +132,10 @@ problem statement (you)
 ```
 
 Every agent receives **original requirements + compressed accumulated context**
-from previous agents. QA/Reviewer can emit a must-address checklist that is fed
-back to Frontend/Backend for a remediation pass. A strategy approval gate can
-pause the run after planning so the user can explicitly approve before build work.
+from previous agents. Performance/Security/QA/Reviewer can emit must-address
+checklists that are fed back to implementation roles for a remediation pass.
+The strategy phase is explicitly finalized with user approval before architecture
+and build work starts.
 
 ---
 
@@ -167,14 +216,23 @@ llm:
   routing:
     ceo_planner: qwen2.5:7b-instruct
     market_researcher: qwen2.5:7b-instruct
+    customer_support_feedback_analyst: qwen2.5:7b-instruct
     product_manager: qwen2.5:7b-instruct
+    compliance_privacy_specialist: phi3:mini
     architect: qwen2.5:7b-instruct
     ui_ux_designer: qwen2.5:7b-instruct
+    database_engineer: deepseek-coder:6.7b
+    api_integration_engineer: deepseek-coder:6.7b
     frontend_developer: deepseek-coder:6.7b
     backend_developer: deepseek-coder:6.7b
+    data_analytics_engineer: deepseek-coder:6.7b
+    performance_engineer: phi3:mini
     security_engineer: phi3:mini
     qa_engineer: phi3:mini
     code_reviewer: phi3:mini
+    technical_writer: qwen2.5:7b-instruct
+    sre_reliability_engineer: deepseek-coder:6.7b
+    release_manager: qwen2.5:7b-instruct
     devops_engineer: deepseek-coder:6.7b
   fallbacks:
     ceo_planner: [phi3:mini]
@@ -188,14 +246,23 @@ llm:
 agents:
   ceo_planner: true
   market_researcher: true
+  customer_support_feedback_analyst: true
   product_manager: true
+  compliance_privacy_specialist: true
   architect: true
   ui_ux_designer: true
+  database_engineer: true
+  api_integration_engineer: true
   frontend_developer: true
   backend_developer: true
+  data_analytics_engineer: true
+  performance_engineer: true
   security_engineer: true
   qa_engineer: true
   code_reviewer: true
+  technical_writer: true
+  sre_reliability_engineer: true
+  release_manager: true
   devops_engineer: false  # set to true to add deployment configs
 
 output:
@@ -223,11 +290,20 @@ skills:
     - verification mindset
     - documentation discipline
   per_role:
+    customer_support_feedback_analyst: [support signal prioritization]
+    compliance_privacy_specialist: [privacy impact thinking]
     ui_ux_designer: [interaction design and prototype clarity]
+    database_engineer: [schema evolution safety]
+    api_integration_engineer: [resilient integration contracts]
     frontend_developer: [ui consistency and accessibility]
     backend_developer: [dependency hygiene]
+    data_analytics_engineer: [measurement reliability]
+    performance_engineer: [evidence-driven optimization]
     security_engineer: [threat-led validation]
     qa_engineer: [risk-based test prioritization]
+    technical_writer: [high-signal operational documentation]
+    sre_reliability_engineer: [slo-first reliability planning]
+    release_manager: [go-no-go discipline]
   include: []
   per_role_include: {}
   exclude: []
@@ -271,7 +347,7 @@ Inventory and mapping artifacts:
 ├── src/
 │   ├── agents/
 │   │   ├── base_agent.py        # Agent base class
-│   │   └── definitions.py       # CEO/Research/PM/Arch/UIUX/FE/BE/Sec/QA/Reviewer role definitions
+│   │   └── definitions.py       # Full role definitions across strategy, build, review, and release
 │   ├── tasks/
 │   │   └── software_dev_tasks.py  # Task templates for each role
 │   ├── crew/

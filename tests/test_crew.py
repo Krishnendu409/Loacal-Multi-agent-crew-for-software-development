@@ -43,14 +43,23 @@ def full_crew(tmp_path):
     roles = [
         "CEO Planner",
         "Market Researcher",
+        "Customer Support/Feedback Analyst",
         "Product Manager",
+        "Compliance & Privacy Specialist",
         "Software Architect",
         "UI/UX Designer",
+        "Database Engineer",
+        "API Integration Engineer",
         "Frontend Developer",
         "Backend Developer",
+        "Data/Analytics Engineer",
+        "Performance Engineer",
         "Security Engineer",
         "QA Engineer",
         "Code Reviewer",
+        "Technical Writer",
+        "SRE / Reliability Engineer",
+        "Release Manager",
     ]
     agents = [_make_mock_agent(r) for r in roles]
     return DevCrew(
@@ -71,14 +80,23 @@ def test_kickoff_returns_dict_with_all_roles(full_crew):
     assert set(outputs.keys()) == {
         "CEO Planner",
         "Market Researcher",
+        "Customer Support/Feedback Analyst",
         "Product Manager",
+        "Compliance & Privacy Specialist",
         "Software Architect",
         "UI/UX Designer",
+        "Database Engineer",
+        "API Integration Engineer",
         "Frontend Developer",
         "Backend Developer",
+        "Data/Analytics Engineer",
+        "Performance Engineer",
         "Security Engineer",
         "QA Engineer",
         "Code Reviewer",
+        "Technical Writer",
+        "SRE / Reliability Engineer",
+        "Release Manager",
     }
 
 
@@ -215,7 +233,9 @@ def test_kickoff_with_strategy_gate_stops_when_not_approved(tmp_path):
     roles = [
         "CEO Planner",
         "Market Researcher",
+        "Customer Support/Feedback Analyst",
         "Product Manager",
+        "Compliance & Privacy Specialist",
         "Software Architect",
         "Backend Developer",
     ]
@@ -230,6 +250,12 @@ def test_kickoff_with_strategy_gate_stops_when_not_approved(tmp_path):
         strategy_approval_callback=approval_callback,
     )
     approval_callback.assert_called_once()
-    assert set(outputs.keys()) == {"CEO Planner", "Market Researcher", "Product Manager"}
+    assert set(outputs.keys()) == {
+        "CEO Planner",
+        "Market Researcher",
+        "Customer Support/Feedback Analyst",
+        "Product Manager",
+        "Compliance & Privacy Specialist",
+    }
     architect = next(a for a in agents if a.role == "Software Architect")
     assert architect.llm.chat.call_count == 0

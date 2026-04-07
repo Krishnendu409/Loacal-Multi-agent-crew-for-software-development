@@ -19,6 +19,15 @@ def test_resolve_agent_skills_uses_defaults_for_uiux_and_security_roles():
     assert "threat modeling" in sec_skills
 
 
+def test_resolve_agent_skills_uses_defaults_for_new_specialist_roles():
+    db_skills = resolve_agent_skills("database_engineer", None)
+    perf_skills = resolve_agent_skills("performance_engineer", None)
+    writer_skills = resolve_agent_skills("technical_writer", None)
+    assert "schema design and normalization" in db_skills
+    assert "performance bottleneck analysis" in perf_skills
+    assert "runbook authoring" in writer_skills
+
+
 def test_resolve_agent_skills_merges_shared_and_per_role():
     skills = resolve_agent_skills(
         "qa_engineer",
@@ -71,6 +80,25 @@ def test_resolve_agent_skills_includes_ecc_pack_for_uiux_and_security_roles():
     )
     assert "ux-design" in uiux_skills
     assert "security-review" in sec_skills
+
+
+def test_resolve_agent_skills_includes_ecc_pack_for_new_specialist_roles():
+    api_skills = resolve_agent_skills(
+        "api_integration_engineer",
+        {
+            "include_default_role_skills": False,
+            "packs": {"ecc": {"enabled": True, "profile": "starter"}},
+        },
+    )
+    compliance_skills = resolve_agent_skills(
+        "compliance_privacy_specialist",
+        {
+            "include_default_role_skills": False,
+            "packs": {"ecc": {"enabled": True, "profile": "starter"}},
+        },
+    )
+    assert "api-design" in api_skills
+    assert "security-review" in compliance_skills
 
 
 def test_resolve_agent_skills_supports_exclusions():

@@ -11,14 +11,23 @@ def test_all_expected_tasks_exist():
     expected_keys = {
         "ceo_planner",
         "market_researcher",
+        "customer_support_feedback_analyst",
         "product_manager",
+        "compliance_privacy_specialist",
         "architect",
         "ui_ux_designer",
+        "database_engineer",
+        "api_integration_engineer",
         "frontend_developer",
         "backend_developer",
+        "data_analytics_engineer",
+        "performance_engineer",
         "security_engineer",
         "qa_engineer",
         "code_reviewer",
+        "technical_writer",
+        "sre_reliability_engineer",
+        "release_manager",
         "devops_engineer",
     }
     assert expected_keys == set(TASKS.keys())

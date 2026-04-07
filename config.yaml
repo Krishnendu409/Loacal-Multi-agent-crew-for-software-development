@@ -26,54 +26,90 @@ llm:
   routing:
     ceo_planner: qwen2.5:7b-instruct
     market_researcher: qwen2.5:7b-instruct
+    customer_support_feedback_analyst: qwen2.5:7b-instruct
     product_manager: qwen2.5:7b-instruct
+    compliance_privacy_specialist: phi3:mini
     architect: qwen2.5:7b-instruct
     ui_ux_designer: qwen2.5:7b-instruct
+    database_engineer: deepseek-coder:6.7b
+    api_integration_engineer: deepseek-coder:6.7b
     frontend_developer: deepseek-coder:6.7b
     backend_developer: deepseek-coder:6.7b
+    data_analytics_engineer: deepseek-coder:6.7b
+    performance_engineer: phi3:mini
     security_engineer: phi3:mini
     qa_engineer: phi3:mini
     code_reviewer: phi3:mini
+    technical_writer: qwen2.5:7b-instruct
+    sre_reliability_engineer: deepseek-coder:6.7b
+    release_manager: qwen2.5:7b-instruct
     devops_engineer: deepseek-coder:6.7b
   # Fallbacks used if the primary model fails for a role
   fallbacks:
     ceo_planner: [phi3:mini]
     market_researcher: [phi3:mini]
+    customer_support_feedback_analyst: [phi3:mini]
     product_manager: [phi3:mini]
+    compliance_privacy_specialist: [qwen2.5:7b-instruct]
     architect: [phi3:mini]
     ui_ux_designer: [phi3:mini]
+    database_engineer: [qwen2.5:7b-instruct]
+    api_integration_engineer: [qwen2.5:7b-instruct]
     frontend_developer: [qwen2.5:7b-instruct]
     backend_developer: [qwen2.5:7b-instruct]
+    data_analytics_engineer: [qwen2.5:7b-instruct]
+    performance_engineer: [qwen2.5:7b-instruct]
     security_engineer: [qwen2.5:7b-instruct]
     qa_engineer: [qwen2.5:7b-instruct]
     code_reviewer: [qwen2.5:7b-instruct]
+    technical_writer: [phi3:mini]
+    sre_reliability_engineer: [qwen2.5:7b-instruct]
+    release_manager: [phi3:mini]
     devops_engineer: [qwen2.5:7b-instruct]
   # Optional per-role generation tuning
   role_options:
     ceo_planner: {temperature: 0.3, num_predict: 1536}
     market_researcher: {temperature: 0.2, num_predict: 1536}
+    customer_support_feedback_analyst: {temperature: 0.2, num_predict: 1280}
     product_manager: {temperature: 0.3, num_predict: 1536}
+    compliance_privacy_specialist: {temperature: 0.1, num_predict: 1024}
     architect: {temperature: 0.2, num_predict: 1536}
     ui_ux_designer: {temperature: 0.3, num_predict: 1536}
+    database_engineer: {temperature: 0.2, num_predict: 1536}
+    api_integration_engineer: {temperature: 0.2, num_predict: 1536}
     frontend_developer: {temperature: 0.2, num_predict: 2048}
     backend_developer: {temperature: 0.2, num_predict: 2048}
+    data_analytics_engineer: {temperature: 0.2, num_predict: 1536}
+    performance_engineer: {temperature: 0.1, num_predict: 1024}
     security_engineer: {temperature: 0.1, num_predict: 1024}
     qa_engineer: {temperature: 0.1, num_predict: 1024}
     code_reviewer: {temperature: 0.1, num_predict: 1024}
+    technical_writer: {temperature: 0.2, num_predict: 1536}
+    sre_reliability_engineer: {temperature: 0.2, num_predict: 1024}
+    release_manager: {temperature: 0.2, num_predict: 1024}
     devops_engineer: {temperature: 0.2, num_predict: 1024}
 
 agents:
   # Toggle which agents participate in the crew
   ceo_planner: true
   market_researcher: true
+  customer_support_feedback_analyst: true
   product_manager: true
+  compliance_privacy_specialist: true
   architect: true
   ui_ux_designer: true
+  database_engineer: true
+  api_integration_engineer: true
   frontend_developer: true
   backend_developer: true
+  data_analytics_engineer: true
+  performance_engineer: true
   security_engineer: true
   qa_engineer: true
   code_reviewer: true
+  technical_writer: true
+  sre_reliability_engineer: true
+  release_manager: true
   devops_engineer: false   # optional – enable for deployment configs
 
 output:
@@ -112,11 +148,20 @@ skills:
     - documentation discipline
   # Optional per-role additions (keys match the `agents` section)
   per_role:
+    customer_support_feedback_analyst: [support signal prioritization]
+    compliance_privacy_specialist: [privacy impact thinking]
     ui_ux_designer: [interaction design and prototype clarity]
+    database_engineer: [schema evolution safety]
+    api_integration_engineer: [resilient integration contracts]
     frontend_developer: [ui consistency and accessibility]
     backend_developer: [dependency hygiene]
+    data_analytics_engineer: [measurement reliability]
+    performance_engineer: [evidence-driven optimization]
     security_engineer: [threat-led validation]
     qa_engineer: [risk-based test prioritization]
+    technical_writer: [high-signal operational documentation]
+    sre_reliability_engineer: [slo-first reliability planning]
+    release_manager: [go-no-go discipline]
   # Optional global and per-role explicit includes
   include: []
   per_role_include: {}

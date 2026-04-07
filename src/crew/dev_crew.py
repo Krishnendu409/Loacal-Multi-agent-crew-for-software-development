@@ -22,14 +22,23 @@ from src.utils import display
 _ROLE_TO_TASK_KEY: dict[str, str] = {
     "CEO Planner": "ceo_planner",
     "Market Researcher": "market_researcher",
+    "Customer Support/Feedback Analyst": "customer_support_feedback_analyst",
     "Product Manager": "product_manager",
+    "Compliance & Privacy Specialist": "compliance_privacy_specialist",
     "Software Architect": "architect",
     "UI/UX Designer": "ui_ux_designer",
+    "Database Engineer": "database_engineer",
+    "API Integration Engineer": "api_integration_engineer",
     "Frontend Developer": "frontend_developer",
     "Backend Developer": "backend_developer",
+    "Data/Analytics Engineer": "data_analytics_engineer",
+    "Performance Engineer": "performance_engineer",
     "Security Engineer": "security_engineer",
     "QA Engineer": "qa_engineer",
     "Code Reviewer": "code_reviewer",
+    "Technical Writer": "technical_writer",
+    "SRE / Reliability Engineer": "sre_reliability_engineer",
+    "Release Manager": "release_manager",
     "DevOps Engineer": "devops_engineer",
 }
 
@@ -109,7 +118,13 @@ class DevCrew:
         role_to_agent = {agent.role: agent for agent in self.agents}
 
         # Phase 1: Strategy and market planning
-        strategy_roles = ["CEO Planner", "Market Researcher", "Product Manager"]
+        strategy_roles = [
+            "CEO Planner",
+            "Market Researcher",
+            "Customer Support/Feedback Analyst",
+            "Product Manager",
+            "Compliance & Privacy Specialist",
+        ]
         for role in strategy_roles:
             agent = role_to_agent.get(role)
             if agent is None:
@@ -133,8 +148,11 @@ class DevCrew:
         for role in [
             "Software Architect",
             "UI/UX Designer",
+            "Database Engineer",
+            "API Integration Engineer",
             "Frontend Developer",
             "Backend Developer",
+            "Data/Analytics Engineer",
         ]:
             agent = role_to_agent.get(role)
             if agent is None:
@@ -149,20 +167,32 @@ class DevCrew:
             completed_roles.add(role)
 
         # Phase 3/4: QA + Security + Reviewer findings, then implementation fix pass (bounded)
+        performance_agent = role_to_agent.get("Performance Engineer")
         qa_agent = role_to_agent.get("QA Engineer")
         security_agent = role_to_agent.get("Security Engineer")
         reviewer_agent = role_to_agent.get("Code Reviewer")
+        database_agent = role_to_agent.get("Database Engineer")
+        api_integration_agent = role_to_agent.get("API Integration Engineer")
+        analytics_agent = role_to_agent.get("Data/Analytics Engineer")
         frontend_agent = role_to_agent.get("Frontend Developer")
         backend_agent = role_to_agent.get("Backend Developer")
         implementation_agents = [
-            agent for agent in [frontend_agent, backend_agent] if agent is not None
+            agent
+            for agent in [
+                frontend_agent,
+                backend_agent,
+                database_agent,
+                api_integration_agent,
+                analytics_agent,
+            ]
+            if agent is not None
         ]
         must_address: list[str] = []
 
-        if qa_agent or reviewer_agent or security_agent:
+        if performance_agent or qa_agent or reviewer_agent or security_agent:
             for iteration in range(self.max_fix_iterations + 1):
                 round_findings: list[str] = []
-                for review_agent in [qa_agent, security_agent, reviewer_agent]:
+                for review_agent in [performance_agent, qa_agent, security_agent, reviewer_agent]:
                     if review_agent is None:
                         continue
                     response = self._execute_agent(
@@ -298,7 +328,7 @@ class DevCrew:
 
     def _render_fix_task(self, requirements: str, iteration: int) -> str:
         return (
-            f"Fix pass #{iteration}: Address only QA/Reviewer checklist items for the "
+            f"Fix pass #{iteration}: Address only Performance/Security/QA/Reviewer checklist items for the "
             "current implementation. Keep architecture unchanged. Update code and setup "
             "instructions as needed. Be explicit about what was fixed and what remains.\n\n"
             f"Original requirements:\n---\n{requirements}\n---"
