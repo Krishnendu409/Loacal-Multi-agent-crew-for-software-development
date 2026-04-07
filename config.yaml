@@ -79,7 +79,5 @@ skills:
     - documentation discipline
   # Optional per-role additions (keys match the `agents` section)
   per_role:
-    backend_developer:
-      - dependency hygiene
-    qa_engineer:
-      - risk-based test prioritization
+    backend_developer: [dependency hygiene]
+    qa_engineer: [risk-based test prioritization]
