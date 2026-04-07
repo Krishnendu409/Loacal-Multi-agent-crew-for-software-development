@@ -83,6 +83,22 @@ def test_agent_extra_instructions_in_system_prompt(mock_llm):
     assert "Always use type hints." in system_prompt
 
 
+def test_agent_system_prompt_includes_skills_and_handoff_contract(mock_llm):
+    agent = Agent(
+        role="Developer",
+        goal="Build features",
+        backstory="Writes robust code",
+        llm=mock_llm,
+        skills=["secure coding", "structured communication"],
+        enforce_handoff_sections=True,
+    )
+    agent.execute("Implement feature Y")
+    system_prompt, _ = mock_llm.chat.call_args[0]
+    assert "Apply these operational skills" in system_prompt
+    assert "secure coding" in system_prompt
+    assert "Handoff Notes for Next Role" in system_prompt
+
+
 # ---------------------------------------------------------------------------
 # build_agents
 # ---------------------------------------------------------------------------
@@ -144,3 +160,25 @@ def test_build_agents_applies_role_routing_and_fallbacks(mock_llm):
     assert agent.llm_model == "qwen2.5-coder:7b"
     assert agent.llm_fallback_models == ["deepseek-coder:6.7b", "llama3.2:3b"]
     assert agent.llm_options == {"num_predict": 1024, "temperature": 0.2}
+
+
+def test_build_agents_applies_skill_config(mock_llm):
+    enabled = {k: False for k in AGENT_ORDER}
+    enabled["backend_developer"] = True
+    skills_config = {
+        "shared": ["security-first thinking"],
+        "per_role": {"backend_developer": ["dependency hygiene"]},
+        "include_default_role_skills": True,
+        "enforce_handoff_sections": False,
+    }
+    agents = build_agents(
+        mock_llm,
+        enabled=enabled,
+        llm_config={},
+        skills_config=skills_config,
+    )
+    assert len(agents) == 1
+    agent = agents[0]
+    assert "dependency hygiene" in agent.skills
+    assert "security-first thinking" in agent.skills
+    assert agent.enforce_handoff_sections is False

@@ -54,6 +54,8 @@ def test_load_config_returns_defaults_when_no_file(tmp_path):
     assert cfg["agents"]["product_manager"] is True
     assert cfg["crew"]["max_fix_iterations"] == 1
     assert cfg["output"]["save_final_report"] is True
+    assert cfg["skills"]["include_default_role_skills"] is True
+    assert cfg["skills"]["enforce_handoff_sections"] is True
 
 
 def test_load_config_overrides_model(tmp_path):

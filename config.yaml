@@ -65,3 +65,21 @@ crew:
   # Single remediation pass: Dev -> QA/Reviewer -> Dev fix pass
   max_fix_iterations: 1
   stop_on_no_major_issues: true
+
+skills:
+  # Enable built-in role skill packs and shared communication standards
+  include_default_role_skills: true
+  # Force consistent handoff sections between agents
+  enforce_handoff_sections: true
+  # Shared skills injected into every role
+  shared:
+    - structured communication
+    - security-first thinking
+    - verification mindset
+    - documentation discipline
+  # Optional per-role additions (keys match the `agents` section)
+  per_role:
+    backend_developer:
+      - dependency hygiene
+    qa_engineer:
+      - risk-based test prioritization

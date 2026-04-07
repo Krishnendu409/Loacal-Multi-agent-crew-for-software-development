@@ -14,6 +14,7 @@ runtime.
 | 🆓 **Free** | Uses local Ollama models – zero cost, zero API keys |
 | 💻 **Runs locally** | Works on mid-range laptops (4 GB RAM minimum with `phi3` or `llama3.2`) |
 | 🗣️ **Agent communication** | Each agent reads compressed prior context + original requirements + QA/Reviewer checklists |
+| 🧠 **Built-in skill packs** | Shared + role-specific skills are injected into prompts, configurable in `config.yaml` |
 | 👥 **Full dev team** | PM → Architect → Developer → QA → Code Reviewer → DevOps (optional) |
 | 🔁 **Fix-pass loop** | Dev → QA/Reviewer → Dev remediation pass (bounded iterations) |
 | 📄 **Saved outputs** | Every agent's response and a final compiled report saved to `output/` |
@@ -160,6 +161,18 @@ output:
 crew:
   max_fix_iterations: 1
   stop_on_no_major_issues: true
+
+skills:
+  include_default_role_skills: true
+  enforce_handoff_sections: true
+  shared:
+    - structured communication
+    - security-first thinking
+    - verification mindset
+    - documentation discipline
+  per_role:
+    backend_developer: [dependency hygiene]
+    qa_engineer: [risk-based test prioritization]
 ```
 
 ---

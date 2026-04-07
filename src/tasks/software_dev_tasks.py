@@ -37,7 +37,8 @@ TASKS: dict[str, Task] = {
             "product specification document.  Make sure every ambiguity is resolved or "
             "explicitly flagged.  The specification will be handed directly to the "
             "Software Architect, so it must be precise and actionable.  Keep sections "
-            "structured and concise so later agents can consume a compact summary."
+            "structured and concise so later agents can consume a compact summary. "
+            "End with an explicit handoff note for the Software Architect."
         ),
     ),
     "architect": Task(
@@ -48,7 +49,8 @@ TASKS: dict[str, Task] = {
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Choose the simplest architecture that meets the requirements.  Document "
             "your technology choices with clear reasoning.  The Backend Developer "
-            "will implement the system based on your design.  Include clear trade-offs."
+            "will implement the system based on your design.  Include clear trade-offs "
+            "and end with an explicit handoff note for the Backend Developer."
         ),
     ),
     "backend_developer": Task(
@@ -59,7 +61,8 @@ TASKS: dict[str, Task] = {
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Write complete, working, well-commented code.  Include all necessary "
             "files and a clear setup guide.  The QA Engineer will test your code next. "
-            "If a must-address checklist is provided, fix only those items."
+            "If a must-address checklist is provided, fix only those items. End with "
+            "an explicit handoff note for QA and Code Review."
         ),
     ),
     "qa_engineer": Task(
@@ -70,7 +73,8 @@ TASKS: dict[str, Task] = {
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Write concrete automated tests that verify the most important behaviours. "
             "Highlight any bugs or quality concerns you find in the implementation. "
-            "Provide a must-address checklist with severity tags."
+            "Provide a must-address checklist with severity tags and end with an "
+            "explicit handoff note for the Backend Developer."
         ),
     ),
     "code_reviewer": Task(
@@ -81,7 +85,8 @@ TASKS: dict[str, Task] = {
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Perform a thorough review.  Be specific: cite file/line when possible, "
             "explain *why* something is an issue, and always provide a concrete "
-            "improvement suggestion.  End with a must-address checklist with severities."
+            "improvement suggestion.  End with a must-address checklist with severities "
+            "and a clear handoff note for the Backend Developer (or DevOps if enabled)."
         ),
     ),
     "devops_engineer": Task(
@@ -91,7 +96,7 @@ TASKS: dict[str, Task] = {
             "needed to deploy and operate this system reliably.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
             "Provide a complete Dockerfile (or Docker Compose), a CI/CD pipeline "
-            "definition, and a brief runbook."
+            "definition, and a brief runbook. End with operational handoff notes."
         ),
     ),
 }
