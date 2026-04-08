@@ -134,7 +134,7 @@ _DEFAULTS: dict[str, Any] = {
         "save_final_report": True,
     },
     "crew": {
-        "max_fix_iterations": 1,
+        "max_fix_iterations": 3,
         "stop_on_no_major_issues": True,
         "require_strategy_approval": True,
     },
@@ -177,4 +177,26 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
             if isinstance(loaded, dict):
                 file_config = loaded
 
-    return _deep_merge(_DEFAULTS, file_config)
+    merged = _deep_merge(_DEFAULTS, file_config)
+
+    env_overrides = {
+        "OLLAMA_URL": ("llm", "base_url"),
+        "MODEL_REASONING": ("llm", "routing", "ceo_planner"),
+        "MODEL_CODING": ("llm", "routing", "backend_developer"),
+        "MODEL_CRITIC": ("llm", "routing", "code_reviewer"),
+    }
+    for env_key, config_path_tuple in env_overrides.items():
+        value = os.getenv(env_key)
+        if not value:
+            continue
+        node: dict[str, Any] = merged
+        *parents, leaf = config_path_tuple
+        for key in parents:
+            child = node.get(key)
+            if not isinstance(child, dict):
+                child = {}
+                node[key] = child
+            node = child
+        node[leaf] = value
+
+    return merged

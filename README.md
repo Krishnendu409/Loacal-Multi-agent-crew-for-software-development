@@ -16,8 +16,8 @@ runtime.
 | 🗣️ **Agent communication** | Each agent reads compressed prior context + original requirements + QA/Reviewer checklists |
 | 🧠 **Built-in skill packs** | Shared + role-specific skills are injected into prompts, configurable in `config.yaml` |
 | 👥 **Full dev team** | 18-role local team spanning strategy, market research, design, engineering, review, reliability, docs, and release (see architecture flow below) |
-| 🔁 **Fix-pass loop** | Implementation roles → Performance/Security/QA/Reviewer → targeted remediation pass (bounded iterations) |
-| 📄 **Saved outputs** | Every agent's response and a final compiled report saved to `output/` |
+| 🔁 **Autonomous fix loop** | Generate code → write files → execute tests → critique → remediate (bounded iterations) |
+| 📄 **Saved outputs** | Versioned structured artifacts, generated project files, and execution memory |
 | ⚙️ **Configurable** | Swap models, enable/disable agents, change output paths via `config.yaml` |
 
 ---
@@ -199,6 +199,12 @@ python main.py run --model deepseek-coder:6.7b --project "Todo API"
 ## ⚙️ Configuration
 
 Copy or edit `config.yaml` to customise the system:
+
+Environment overrides are also supported:
+- `OLLAMA_URL`
+- `MODEL_REASONING`
+- `MODEL_CODING`
+- `MODEL_CRITIC`
 
 ```yaml
 llm:

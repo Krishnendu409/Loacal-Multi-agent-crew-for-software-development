@@ -39,13 +39,18 @@ class OllamaClient:
         self.options: dict[str, Any] = options or {}
         self.retries = max(retries, 0)
         self.timeout_seconds = timeout_seconds
+        self._client = None
+        self._cache: dict[tuple[str, str, str], str] = {}
 
     def _build_client(self):
+        if self._client is not None:
+            return self._client
         ollama = _get_ollama()
         kwargs: dict[str, Any] = {"host": self.base_url}
         if self.timeout_seconds:
             kwargs["timeout"] = self.timeout_seconds
-        return ollama.Client(**kwargs)
+        self._client = ollama.Client(**kwargs)
+        return self._client
 
     def chat(
         self,
@@ -75,6 +80,13 @@ class OllamaClient:
         errors: list[str] = []
         attempts = self.retries + 1
         for candidate in model_candidates:
+            cache_key = (
+                candidate,
+                system_prompt,
+                user_message,
+            )
+            if cache_key in self._cache:
+                return self._cache[cache_key]
             for attempt in range(1, attempts + 1):
                 try:
                     response = client.chat(
@@ -82,7 +94,9 @@ class OllamaClient:
                         messages=messages,
                         options=merged_options or None,
                     )
-                    return response["message"]["content"]
+                    content = response["message"]["content"]
+                    self._cache[cache_key] = content
+                    return content
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")
                     if attempt < attempts:

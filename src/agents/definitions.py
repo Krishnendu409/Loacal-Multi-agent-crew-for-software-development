@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src.agents.base_agent import Agent
-from src.skills import resolve_agent_skills
+from src.skills import SkillMarkdownLoader, resolve_agent_skills
 
 if TYPE_CHECKING:
     from src.utils.ollama_client import OllamaClient
@@ -74,7 +74,12 @@ def _apply_skill_config(
     role_key: str,
     skills_config: dict[str, object] | None,
 ) -> Agent:
-    agent.skills = resolve_agent_skills(role_key, skills_config)
+    markdown_loader = SkillMarkdownLoader()
+    markdown_skills = markdown_loader.load_for_role(role_key)
+    if markdown_skills:
+        agent.skills = markdown_skills
+    else:
+        agent.skills = resolve_agent_skills(role_key, skills_config)
     if skills_config and "enforce_handoff_sections" in skills_config:
         agent.enforce_handoff_sections = bool(skills_config.get("enforce_handoff_sections"))
     return agent

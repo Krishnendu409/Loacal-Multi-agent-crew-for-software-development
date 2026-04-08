@@ -122,7 +122,7 @@ output:
 
 crew:
   # Strategy gate + remediation pass: planning -> approval -> build -> QA/Reviewer -> fix
-  max_fix_iterations: 1
+  max_fix_iterations: 3
   stop_on_no_major_issues: true
   require_strategy_approval: true
 

@@ -9,7 +9,10 @@ can build on each other's work.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from typing import TYPE_CHECKING
+
+from src.protocol.messages import AgentMessage, AgentResult, parse_structured_result, render_message_block
 
 if TYPE_CHECKING:
     from src.utils.ollama_client import OllamaClient
@@ -42,15 +45,18 @@ class Agent:
             ),
         ]
         if self.skills:
-            skill_lines = "\n".join(f"- {skill}" for skill in self.skills)
+            skill_lines = "\n\n".join(f"- Skill:\n{skill}" for skill in self.skills)
             parts.append(f"Apply these operational skills in your response:\n{skill_lines}")
         if self.enforce_handoff_sections:
             parts.append(
-                "Use this communication contract in every response with clear headings:\n"
-                "1. Summary\n"
-                "2. Key Decisions\n"
-                "3. Risks / Open Questions\n"
-                "4. Handoff Notes for Next Role"
+                "Return structured, valid JSON only with this schema:\n"
+                "{\n"
+                '  "files": [{"path": "relative/path.ext", "content": "..." }],\n'
+                '  "steps": ["..."],\n'
+                '  "issues": ["..."],\n'
+                '  "status": "success | failure",\n'
+                '  "summary": "..."\n'
+                "}"
             )
         if self.extra_instructions:
             parts.append(self.extra_instructions)
@@ -86,15 +92,34 @@ class Agent:
         user_message_parts.append(
             "Please provide your best professional response now."
         )
+        user_message_parts.append(
+            "Return only JSON. Do not include markdown fences or any extra prose."
+        )
         user_message = "\n\n---\n\n".join(user_message_parts)
-        try:
-            return self.llm.chat(
-                self._system_prompt(),
-                user_message,
-                model=self.llm_model,
-                options=self.llm_options,
-                fallback_models=self.llm_fallback_models,
-            )
-        except TypeError:
-            # Backward-compatible path for mocked or legacy chat clients.
-            return self.llm.chat(self._system_prompt(), user_message)
+        return self.llm.chat(
+            self._system_prompt(),
+            user_message,
+            model=self.llm_model,
+            options=self.llm_options,
+            fallback_models=self.llm_fallback_models,
+        )
+
+    def execute_structured(
+        self,
+        task_description: str,
+        message: AgentMessage,
+        *,
+        requirements: str = "",
+        must_address: list[str] | None = None,
+    ) -> AgentResult:
+        context = render_message_block(message)
+        raw = self.execute(
+            task_description=task_description,
+            context=context,
+            requirements=requirements,
+            must_address=must_address,
+        )
+        result = parse_structured_result(raw)
+        if not result.summary:
+            result.summary = json.dumps(result.to_dict(), ensure_ascii=False)
+        return result
