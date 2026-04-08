@@ -48,6 +48,8 @@ class ProjectGenerator:
             written.append(target)
 
             version_stem = rel.replace("/", "_").replace(".", "_")
-            version_path = next_versioned_path(self.versions_root, f"{version_stem}_{version_tag}", ".txt")
+            version_path = next_versioned_path(
+                self.versions_root, f"{version_stem}_{version_tag}", ".txt"
+            )
             atomic_write_text(version_path, content)
         return written

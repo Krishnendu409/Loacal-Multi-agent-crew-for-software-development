@@ -83,10 +83,11 @@ def _apply_skill_config(
 ) -> Agent:
     markdown_loader = SkillMarkdownLoader()
     markdown_skills = markdown_loader.load_for_role(role_key)
-    if markdown_skills:
+    resolved_skills = resolve_agent_skills(role_key, skills_config)
+    if resolved_skills:
+        agent.skills = resolved_skills
+    elif markdown_skills:
         agent.skills = markdown_skills
-    else:
-        agent.skills = resolve_agent_skills(role_key, skills_config)
     if skills_config and "enforce_handoff_sections" in skills_config:
         agent.enforce_handoff_sections = bool(skills_config.get("enforce_handoff_sections"))
     return agent

@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 from src.agents.base_agent import Agent
 from src.tasks.software_dev_tasks import TASKS, Task
 from src.utils import display
-from src.utils.fs import atomic_write_text, next_versioned_path
 
 # ---------------------------------------------------------------------------
 # Agent execution order (task keys, used for start_from_role logic)
@@ -179,15 +178,14 @@ class DevCrew:
             self._seed_resume_context(resume_outputs, outputs, context_parts, completed_roles)
 
         role_to_agent = {agent.role: agent for agent in self.agents}
-        role_messages: dict[str, AgentMessage] = {}
-        outputs: dict[str, str] = {}
 
         # Phase 1: Strategy agents
         strategy_roles = [
             "CEO Planner",
             "Market Researcher",
+            "Customer Support/Feedback Analyst",
             "Product Manager",
-            "Software Architect",
+            "Compliance & Privacy Specialist",
         ]
 
         for role in strategy_roles:
@@ -204,16 +202,6 @@ class DevCrew:
                 outputs=outputs,
                 project_name=project_name,
             )
-            outputs[role] = result.raw_text
-            memory.append_history(
-                {
-                    "phase": "strategy",
-                    "role": role,
-                    "status": result.status,
-                    "issues": result.issues,
-                }
-            )
-            self._save_agent_artifacts(project_name, role, result, iteration=1)
 
         if require_strategy_approval and strategy_approval_callback:
             strategy_outputs = {role: outputs[role] for role in strategy_roles if role in outputs}
@@ -347,10 +335,6 @@ class DevCrew:
             )
             completed_roles.add(agent.role)
 
-        snapshot_outputs = best_snapshot.get("outputs") if isinstance(best_snapshot, dict) else None
-        final_outputs = snapshot_outputs if isinstance(snapshot_outputs, dict) else outputs.copy()
-        for role, value in outputs.items():
-            final_outputs.setdefault(role, value)
         if self.save_report:
             self._save_final_report(project_name, requirements, outputs)
         self._save_run_manifest(project_name, outputs)
