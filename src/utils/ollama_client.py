@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import threading
 import time
+import threading
 from typing import Any
 
 
@@ -86,6 +87,14 @@ class OllamaClient:
         effective_retries = self.retries if retries_override is None else max(retries_override, 0)
         attempts = effective_retries + 1
         for candidate in model_candidates:
+            cache_key = (
+                candidate,
+                system_prompt,
+                user_message,
+            )
+            with self._cache_lock:
+                if cache_key in self._cache:
+                    return self._cache[cache_key]
             for attempt in range(1, attempts + 1):
                 try:
                     response = client.chat(

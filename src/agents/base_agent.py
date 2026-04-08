@@ -9,7 +9,10 @@ can build on each other's work.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from typing import TYPE_CHECKING
+
+from src.protocol.messages import AgentMessage, AgentResult, parse_structured_result, render_message_block
 
 if TYPE_CHECKING:
     from src.utils.ollama_client import OllamaClient
@@ -43,15 +46,18 @@ class Agent:
             ),
         ]
         if self.skills:
-            skill_lines = "\n".join(f"- {skill}" for skill in self.skills)
+            skill_lines = "\n\n".join(f"- Skill:\n{skill}" for skill in self.skills)
             parts.append(f"Apply these operational skills in your response:\n{skill_lines}")
         if self.enforce_handoff_sections:
             parts.append(
-                "Use this communication contract in every response with clear headings:\n"
-                "1. Summary\n"
-                "2. Key Decisions\n"
-                "3. Risks / Open Questions\n"
-                "4. Handoff Notes for Next Role"
+                "Return structured, valid JSON only with this schema:\n"
+                "{\n"
+                '  "files": [{"path": "relative/path.ext", "content": "..." }],\n'
+                '  "steps": ["..."],\n'
+                '  "issues": ["..."],\n'
+                '  "status": "success | failure",\n'
+                '  "summary": "..."\n'
+                "}"
             )
         if self.extra_instructions:
             parts.append(self.extra_instructions)
