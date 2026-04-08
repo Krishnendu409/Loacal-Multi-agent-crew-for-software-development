@@ -227,6 +227,8 @@ def _apply_budget(skills: list[str], skills_config: dict[str, object] | None) ->
     raw = skills_config.get("max_skills_per_agent")
     if raw is None:
         return skills
+    if not isinstance(raw, (int, str)):
+        return skills
     try:
         budget = int(raw)
     except (TypeError, ValueError):
@@ -245,7 +247,7 @@ def _validate_strict_config(role_key: str, skills_config: dict[str, object] | No
     if not skills_config or not bool(skills_config.get("strict_mode", False)):
         return
 
-    known = set()
+    known: set[str] = set()
     for values in ROLE_DEFAULT_SKILLS.values():
         known.update(v.lower() for v in values)
     known.update(label.lower() for label in ecc_priority_map().keys())

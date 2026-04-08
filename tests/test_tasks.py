@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.tasks.software_dev_tasks import TASKS, Task
+from src.tasks.software_dev_tasks import TASKS
 
 
 def test_all_expected_tasks_exist():

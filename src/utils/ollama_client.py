@@ -63,6 +63,7 @@ class OllamaClient:
         model: str | None = None,
         options: dict[str, Any] | None = None,
         fallback_models: list[str] | None = None,
+        retries_override: int | None = None,
     ) -> str:
         """Send a chat message and return the assistant's reply as a string."""
         client = self._get_client()
@@ -81,7 +82,8 @@ class OllamaClient:
             model_candidates.extend([m for m in fallback_models if m])
 
         errors: list[str] = []
-        attempts = self.retries + 1
+        effective_retries = self.retries if retries_override is None else max(retries_override, 0)
+        attempts = effective_retries + 1
         for candidate in model_candidates:
             for attempt in range(1, attempts + 1):
                 try:
@@ -90,7 +92,11 @@ class OllamaClient:
                         messages=messages,
                         options=merged_options or None,
                     )
-                    return response["message"]["content"]
+                    message = response.get("message", {}) if isinstance(response, dict) else {}
+                    content = message.get("content") if isinstance(message, dict) else None
+                    if isinstance(content, str):
+                        return content
+                    raise RuntimeError("Ollama response missing message.content")
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")
                     if attempt < attempts:

@@ -31,6 +31,7 @@ Show the current configuration:
 from __future__ import annotations
 
 import sys
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -52,6 +53,7 @@ from src.config.settings import load_config
 from src.crew.dev_crew import DevCrew
 from src.utils import display
 from src.utils.ollama_client import OllamaClient
+from src.utils.research import fetch_research_context
 
 app = typer.Typer(
     name="dev-crew",
@@ -88,9 +90,26 @@ def run(
         "--auto-approve-strategy",
         help="Skip strategy confirmation prompt and proceed automatically.",
     ),
+    start_from_role: Optional[str] = typer.Option(
+        None,
+        "--start-from-role",
+        help="Resume/execute beginning from this exact role name.",
+    ),
+    resume_run_dir: Optional[Path] = typer.Option(
+        None,
+        "--resume-run-dir",
+        help="Path to an existing output run directory to seed prior context from saved role files.",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        help="Enable verbose debug logging.",
+    ),
 ) -> None:
     """Start the multi-agent development crew on a new project."""
     display.print_banner()
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG)
 
     cfg = load_config(config)
     allowed_models = {
@@ -171,7 +190,21 @@ def run(
         stop_on_no_major_issues=bool(
             cfg.get("crew", {}).get("stop_on_no_major_issues", True)
         ),
+        blocking_severities=tuple(
+            cfg.get("crew", {}).get("blocking_severities", ["critical", "major"])
+        ),
     )
+
+    resume_outputs = _load_resume_outputs(resume_run_dir, [a.role for a in agents])
+    research_context = ""
+    if bool(cfg.get("crew", {}).get("research_mode", False)):
+        research_context = fetch_research_context(
+            cfg.get("crew", {}).get("research_urls", []),
+            timeout_seconds=int(cfg.get("crew", {}).get("research_timeout_seconds", 10)),
+            max_chars_per_source=int(
+                cfg.get("crew", {}).get("research_max_chars_per_source", 2000)
+            ),
+        )
 
     try:
         require_gate = bool(cfg.get("crew", {}).get("require_strategy_approval", True))
@@ -190,6 +223,9 @@ def run(
             project_name=project,
             require_strategy_approval=require_gate,
             strategy_approval_callback=_confirm_strategy if require_gate else None,
+            start_from_role=start_from_role,
+            resume_outputs=resume_outputs,
+            research_context=research_context,
         )
     except Exception as exc:  # noqa: BLE001
         display.print_error(str(exc))
@@ -277,6 +313,28 @@ def _validate_allowed_model(model_name: str, allowed_models: set[str], context: 
             f"Allowed: {sorted(allowed_models)}"
         )
         raise typer.Exit(code=1)
+
+
+def _load_resume_outputs(run_dir: Path | None, known_roles: list[str]) -> dict[str, str]:
+    if run_dir is None:
+        return {}
+    if not run_dir.exists() or not run_dir.is_dir():
+        raise ValueError(f"Invalid --resume-run-dir: '{run_dir}' is not a directory.")
+    role_by_file = {_safe_filename(role): role for role in known_roles}
+    loaded: dict[str, str] = {}
+    for file in run_dir.glob("*.md"):
+        if file.name.upper() == "FINAL_REPORT.MD":
+            continue
+        stem = file.stem.lower()
+        role = role_by_file.get(stem)
+        if role is None:
+            continue
+        loaded[role] = file.read_text(encoding="utf-8")
+    return loaded
+
+
+def _safe_filename(name: str) -> str:
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in name).lower()
 
 
 # ---------------------------------------------------------------------------

@@ -88,6 +88,8 @@ llm:
     sre_reliability_engineer: {temperature: 0.2, num_predict: 1024}
     release_manager: {temperature: 0.2, num_predict: 1024}
     devops_engineer: {temperature: 0.2, num_predict: 1024}
+  # Optional retry strategy by role (overrides llm.retries)
+  role_retries: {}
 
 agents:
   # Toggle which agents participate in the crew
@@ -125,6 +127,13 @@ crew:
   max_fix_iterations: 1
   stop_on_no_major_issues: true
   require_strategy_approval: true
+  # Which checklist severities should force a fix pass
+  blocking_severities: [critical, major]
+  # Optional cited research context injected into each role prompt
+  research_mode: false
+  research_urls: []
+  research_timeout_seconds: 10
+  research_max_chars_per_source: 2000
 
 skills:
   # Enable built-in role skill packs and shared communication standards

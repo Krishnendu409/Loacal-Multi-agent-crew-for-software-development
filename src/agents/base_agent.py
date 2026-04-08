@@ -30,6 +30,7 @@ class Agent:
     llm_model: str | None = None
     llm_options: dict[str, object] = field(default_factory=dict)
     llm_fallback_models: list[str] = field(default_factory=list)
+    llm_retries: int | None = None
 
     def _system_prompt(self) -> str:
         parts = [
@@ -93,4 +94,5 @@ class Agent:
             model=self.llm_model,
             options=self.llm_options,
             fallback_models=self.llm_fallback_models,
+            retries_override=self.llm_retries,
         )

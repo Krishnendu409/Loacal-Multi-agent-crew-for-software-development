@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import textwrap
-from pathlib import Path
 
 import pytest
 
@@ -88,12 +87,12 @@ def test_load_config_overrides_model(tmp_path):
         textwrap.dedent(
             """\
             llm:
-              model: llama3.2
+              model: deepseek-coder:6.7b
             """
         )
     )
     cfg = load_config(config_file)
-    assert cfg["llm"]["model"] == "llama3.2"
+    assert cfg["llm"]["model"] == "deepseek-coder:6.7b"
     # defaults still present
     assert cfg["llm"]["base_url"] == "http://localhost:11434"
 
@@ -200,3 +199,40 @@ def test_load_config_env_overrides_take_precedence_over_file(tmp_path, monkeypat
     monkeypatch.setenv("OLLAMA_MODEL", "deepseek-coder:6.7b")
     cfg = load_config(config_file)
     assert cfg["llm"]["model"] == "deepseek-coder:6.7b"
+
+
+def test_load_config_rejects_model_outside_allow_list(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("llm:\n  model: llama3.2\n")
+    with pytest.raises(ValueError, match="llm.model"):
+        load_config(config_file)
+
+
+def test_load_config_rejects_unknown_routing_role(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        textwrap.dedent(
+            """\
+            llm:
+              routing:
+                unknown_role: qwen2.5:7b-instruct
+            """
+        )
+    )
+    with pytest.raises(ValueError, match="unknown role"):
+        load_config(config_file)
+
+
+def test_load_config_rejects_negative_role_retries(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        textwrap.dedent(
+            """\
+            llm:
+              role_retries:
+                backend_developer: -1
+            """
+        )
+    )
+    with pytest.raises(ValueError, match="non-negative integer"):
+        load_config(config_file)

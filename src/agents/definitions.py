@@ -6,6 +6,7 @@ Import ``build_agents`` to get a list of agents configured against a given
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from src.agents.base_agent import Agent
@@ -65,6 +66,12 @@ def _apply_llm_role_config(
         options = role_options.get(role_key, {})
         if isinstance(options, dict):
             agent.llm_options = options
+
+    role_retries = llm_config.get("role_retries", {})
+    if isinstance(role_retries, dict):
+        retries = role_retries.get(role_key)
+        if isinstance(retries, int):
+            agent.llm_retries = max(retries, 0)
 
     return agent
 
@@ -582,7 +589,7 @@ def _release_manager(llm: "OllamaClient", llm_config: dict[str, object] | None) 
 # Public builder
 # ---------------------------------------------------------------------------
 
-_AGENT_FACTORIES = {
+_AGENT_FACTORIES: dict[str, Callable[["OllamaClient", dict[str, object] | None], Agent]] = {
     "ceo_planner": _ceo_planner,
     "market_researcher": _market_researcher,
     "customer_support_feedback_analyst": _customer_support_feedback_analyst,
@@ -628,6 +635,34 @@ AGENT_ORDER = [
     "release_manager",
     "devops_engineer",
 ]
+
+
+def register_agent_role(
+    key: str,
+    factory: Callable[["OllamaClient", dict[str, object] | None], Agent],
+    *,
+    before: str | None = None,
+    after: str | None = None,
+) -> None:
+    """Register or replace an agent role factory with optional order placement."""
+    if not isinstance(key, str) or not key.strip():
+        raise ValueError("Agent key must be a non-empty string.")
+    if before and after:
+        raise ValueError("Only one of 'before' or 'after' may be set.")
+    _AGENT_FACTORIES[key] = factory
+    if key in AGENT_ORDER:
+        AGENT_ORDER.remove(key)
+    if before:
+        if before not in AGENT_ORDER:
+            raise ValueError(f"Cannot insert before unknown role '{before}'")
+        AGENT_ORDER.insert(AGENT_ORDER.index(before), key)
+        return
+    if after:
+        if after not in AGENT_ORDER:
+            raise ValueError(f"Cannot insert after unknown role '{after}'")
+        AGENT_ORDER.insert(AGENT_ORDER.index(after) + 1, key)
+        return
+    AGENT_ORDER.append(key)
 
 
 def build_agents(
