@@ -13,6 +13,7 @@ from collections import OrderedDict
 from typing import Any
 
 _TIMEOUT_EXTENSION_SECONDS = 120
+_DEFAULT_TIMEOUT_BASE_SECONDS = 120
 
 
 def _get_ollama():
@@ -91,6 +92,22 @@ class OllamaClient:
             return content
         raise RuntimeError("Ollama response missing message.content")
 
+    @staticmethod
+    def _chat_once(
+        client: Any,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        options: dict[str, Any],
+        format_schema: dict[str, Any] | None,
+    ) -> Any:
+        return client.chat(
+            model=model,
+            messages=messages,
+            options=options or None,
+            format=format_schema or None,
+        )
+
     def _store_cache(self, cache_key: tuple[str, str, str, str], content: str) -> None:
         with self._cache_lock:
             self._cache[cache_key] = content
@@ -143,11 +160,12 @@ class OllamaClient:
                     return self._cache[cache_key]
             for attempt in range(1, attempts + 1):
                 try:
-                    response = client.chat(
+                    response = self._chat_once(
+                        client,
                         model=candidate,
                         messages=messages,
-                        options=merged_options or None,
-                        format=format_schema or None,
+                        options=merged_options,
+                        format_schema=format_schema,
                     )
                     content = self._extract_content(response)
                     self._store_cache(cache_key, content)
@@ -158,16 +176,17 @@ class OllamaClient:
                         timeout_base = (
                             self.timeout_seconds
                             if self.timeout_seconds is not None
-                            else _TIMEOUT_EXTENSION_SECONDS
+                            else _DEFAULT_TIMEOUT_BASE_SECONDS
                         )
                         extended_timeout = timeout_base + _TIMEOUT_EXTENSION_SECONDS
                         try:
                             extended_client = self._build_client(extended_timeout)
-                            response = extended_client.chat(
+                            response = self._chat_once(
+                                extended_client,
                                 model=candidate,
                                 messages=messages,
-                                options=merged_options or None,
-                                format=format_schema or None,
+                                options=merged_options,
+                                format_schema=format_schema,
                             )
                             content = self._extract_content(response)
                             self._store_cache(cache_key, content)
