@@ -59,7 +59,7 @@ class DevCrew:
         self.output_dir = Path(output_dir)
         self.save_individual = save_individual
         self.save_report = save_report
-        self.max_fix_iterations = max(1, max_fix_iterations)
+        self.max_fix_iterations = max(0, max_fix_iterations)
         self.stop_on_no_major_issues = stop_on_no_major_issues
 
     def kickoff(self, requirements: str, project_name: str = "project") -> dict[str, str]:
@@ -173,7 +173,10 @@ class DevCrew:
                 outputs[role] = result.raw_text
                 self._save_agent_artifacts(project_name, role, result, iteration=iteration)
                 if result.files:
-                    generator.write_files(result.files, version_tag=f"iter{iteration}_{_safe_filename(role)}")
+                    generator.write_files(
+                        result.files,
+                        version_tag=f"iter{iteration}__role__{_safe_filename(role)}",
+                    )
 
             execution_result = self._execute_project_checks(runner, project_dir)
             memory.append_history(

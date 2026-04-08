@@ -96,7 +96,14 @@ class OllamaClient:
                         messages=messages,
                         options=merged_options or None,
                     )
-                    content = response["message"]["content"]
+                    message = response.get("message") if isinstance(response, dict) else None
+                    if not isinstance(message, dict) or not isinstance(
+                        message.get("content"), str
+                    ):
+                        raise RuntimeError(
+                            "Ollama response missing expected message.content string."
+                        )
+                    content = message["content"]
                     self._cache[cache_key] = content
                     self._cache_order.append(cache_key)
                     if len(self._cache_order) > self._cache_limit:

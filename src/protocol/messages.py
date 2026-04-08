@@ -37,6 +37,7 @@ class AgentResult:
 
 _JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 MAX_SUMMARY_LENGTH = 3000
+MAX_PARSE_LENGTH = 20000
 
 
 def parse_structured_result(raw_text: str) -> AgentResult:
@@ -72,7 +73,7 @@ def _extract_json_payload(raw_text: str) -> dict[str, Any]:
     raw_text = raw_text.strip()
 
     match = _JSON_BLOCK_RE.search(raw_text)
-    candidate = match.group(1).strip() if match else raw_text
+    candidate = (match.group(1).strip() if match else raw_text)[:MAX_PARSE_LENGTH]
 
     # Try direct parsing first.
     try:
