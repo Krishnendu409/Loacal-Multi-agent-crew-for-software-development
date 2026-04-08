@@ -193,7 +193,11 @@ def run(
         embedding_model=str(cfg.get("crew", {}).get("embedding_model", "nomic-embed-text")),
     )
 
-    resume_outputs = _load_resume_outputs(resume_run_dir, [a.role for a in agents])
+    try:
+        resume_outputs = _load_resume_outputs(resume_run_dir, [a.role for a in agents])
+    except ValueError as exc:
+        display.print_error(str(exc))
+        raise typer.Exit(code=1) from exc
     research_context = ""
     if bool(cfg.get("crew", {}).get("research_mode", False)):
         research_context = fetch_research_context(
