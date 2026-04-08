@@ -70,8 +70,8 @@ class OllamaClient:
         return ollama.Client(**kwargs)
 
     @staticmethod
-    def _is_timeout_error(exc: Exception) -> bool:
-        timeout_types: tuple[type[BaseException], ...] = (TimeoutError,)
+    def is_timeout_error(exc: Exception) -> bool:
+        timeout_types: tuple[type[Exception], ...] = (TimeoutError,)
         try:
             import httpx
 
@@ -172,7 +172,7 @@ class OllamaClient:
                     return content
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")
-                    if self._is_timeout_error(exc):
+                    if self.is_timeout_error(exc):
                         timeout_base = (
                             self.timeout_seconds
                             if self.timeout_seconds is not None
