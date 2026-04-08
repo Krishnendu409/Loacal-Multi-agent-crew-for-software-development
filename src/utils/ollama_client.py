@@ -70,13 +70,19 @@ class OllamaClient:
 
     @staticmethod
     def _is_timeout_error(exc: Exception) -> bool:
-        if isinstance(exc, TimeoutError):
+        timeout_types: tuple[type[BaseException], ...] = (TimeoutError,)
+        try:
+            import httpx
+
+            timeout_types = (TimeoutError, httpx.TimeoutException)
+        except ImportError:  # pragma: no cover
+            pass
+        if isinstance(exc, timeout_types):
             return True
-        for cls in type(exc).__mro__:
-            if "timeout" in cls.__name__.lower():
-                return True
+        if exc.__cause__ is not None and isinstance(exc.__cause__, timeout_types):
+            return True
         text = str(exc).lower()
-        return "timed out" in text or "timeout" in text
+        return "timed out" in text
 
     def _extract_content(self, response: Any) -> str:
         message = response.get("message", {}) if isinstance(response, dict) else {}
@@ -158,9 +164,6 @@ class OllamaClient:
                                 options=merged_options or None,
                                 format=format_schema or None,
                             )
-                            with self._client_lock:
-                                self._client = extended_client
-                                self.timeout_seconds = extended_timeout
                             content = self._extract_content(response)
                             self._store_cache(cache_key, content)
                             return content

@@ -300,7 +300,7 @@ def _hint_common_errors(exc: Exception) -> None:
             "\n[yellow]💡 Tip:[/yellow] Could not reach the Ollama daemon.  "
             "Start it with:  [bold]ollama serve[/bold]"
         )
-    elif "timed out" in msg or "timeout" in msg:
+    elif "timed out" in msg or "read timeout" in msg or "connect timeout" in msg:
         console.print(
             "\n[yellow]💡 Tip:[/yellow] Model inference timed out. Increase "
             "[bold]llm.timeout_seconds[/bold] in config.yaml or set "
