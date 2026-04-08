@@ -149,17 +149,18 @@ class OllamaClient:
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")
                     if self.timeout_seconds and self._is_timeout_error(exc):
-                        extended_timeout = max(
-                            self.timeout_seconds * 2,
-                            self.timeout_seconds + _TIMEOUT_EXTENSION_SECONDS,
-                        )
+                        extended_timeout = self.timeout_seconds + _TIMEOUT_EXTENSION_SECONDS
                         try:
-                            response = self._build_client(extended_timeout).chat(
+                            extended_client = self._build_client(extended_timeout)
+                            response = extended_client.chat(
                                 model=candidate,
                                 messages=messages,
                                 options=merged_options or None,
                                 format=format_schema or None,
                             )
+                            with self._client_lock:
+                                self._client = extended_client
+                                self.timeout_seconds = extended_timeout
                             content = self._extract_content(response)
                             self._store_cache(cache_key, content)
                             return content
