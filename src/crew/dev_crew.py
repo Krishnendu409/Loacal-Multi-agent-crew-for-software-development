@@ -155,6 +155,9 @@ class DevCrew:
         resume_outputs: dict[str, str] | None,
         research_context: str,
     ) -> dict[str, str]:
+        # Ensure each kickoff gets a fresh run directory, even when reusing the same DevCrew instance.
+        if hasattr(self, "_run_dir"):
+            delattr(self, "_run_dir")
         outputs: dict[str, str] = {}
         context_parts: list[str] = []
         completed_roles: set[str] = set()

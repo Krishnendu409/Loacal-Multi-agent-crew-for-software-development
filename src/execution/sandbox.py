@@ -28,7 +28,12 @@ class Sandbox:
     def validate_command(self, command: list[str]) -> None:
         if not command:
             raise SandboxError("Command cannot be empty.")
-        executable = Path(command[0]).name
+        executable_raw = str(command[0]).strip()
+        if not executable_raw:
+            raise SandboxError("Command executable cannot be empty.")
+        if Path(executable_raw).name != executable_raw:
+            raise SandboxError("Executable must be a bare command name, not a path.")
+        executable = executable_raw
         if executable not in self._ALLOWED_COMMANDS:
             raise SandboxError(f"Command '{executable}' is not allowed by sandbox policy.")
 
