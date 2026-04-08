@@ -424,18 +424,19 @@ def _apply_env_overrides(cfg: dict[str, Any]) -> None:
     model_reasoning = _str("MODEL_REASONING")
     model_coding = _str("MODEL_CODING")
     model_critic = _str("MODEL_CRITIC")
-    if model_reasoning and model is None:
-        cfg["llm"]["model"] = model_reasoning
-    routing = cfg["llm"].setdefault("routing", {})
-    if model_reasoning:
-        for role in _REASONING_ROLES:
-            routing[role] = model_reasoning
-    if model_coding:
-        for role in _CODING_ROLES:
-            routing[role] = model_coding
-    if model_critic:
-        for role in _CRITIC_ROLES:
-            routing[role] = model_critic
+    if model is None:
+        if model_reasoning:
+            cfg["llm"]["model"] = model_reasoning
+        routing = cfg["llm"].setdefault("routing", {})
+        if model_reasoning:
+            for role in _REASONING_ROLES:
+                routing[role] = model_reasoning
+        if model_coding:
+            for role in _CODING_ROLES:
+                routing[role] = model_coding
+        if model_critic:
+            for role in _CRITIC_ROLES:
+                routing[role] = model_critic
 
     # crew overrides
     max_fix_iterations = _int("CREW_MAX_FIX_ITERATIONS")

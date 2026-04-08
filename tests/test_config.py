@@ -162,9 +162,10 @@ def test_load_config_env_override_legacy_role_group_models(tmp_path, monkeypatch
 
 def test_load_config_modern_model_override_wins_over_legacy_reasoning(tmp_path, monkeypatch):
     monkeypatch.setenv("OLLAMA_MODEL", "phi3:mini")
-    monkeypatch.setenv("MODEL_REASONING", "qwen2.5:7b-instruct")
+    monkeypatch.setenv("MODEL_REASONING", "deepseek-coder:6.7b")
     cfg = load_config(tmp_path / "nonexistent.yaml")
     assert cfg["llm"]["model"] == "phi3:mini"
+    assert cfg["llm"]["routing"]["product_manager"] == "qwen2.5:7b-instruct"
 
 
 def test_load_config_env_override_retries(tmp_path, monkeypatch):
