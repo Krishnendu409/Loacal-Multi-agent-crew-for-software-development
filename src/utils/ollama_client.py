@@ -16,6 +16,7 @@ def _get_ollama():
     """Import ollama lazily so the test suite can mock it easily."""
     try:
         import ollama  # type: ignore[import-untyped]
+
         return ollama
     except ImportError as exc:  # pragma: no cover
         raise ImportError(

@@ -155,9 +155,7 @@ def _extract_list(config: dict[str, object] | None, key: str) -> list[object]:
     return []
 
 
-def _extract_role_list(
-    config: dict[str, object] | None, key: str, role_key: str
-) -> list[object]:
+def _extract_role_list(config: dict[str, object] | None, key: str, role_key: str) -> list[object]:
     if not config:
         return []
     value = config.get(key, {})
@@ -169,7 +167,9 @@ def _extract_role_list(
     return []
 
 
-def _resolve_external_pack_skills(role_key: str, skills_config: dict[str, object] | None) -> list[str]:
+def _resolve_external_pack_skills(
+    role_key: str, skills_config: dict[str, object] | None
+) -> list[str]:
     if not skills_config:
         return []
     packs = skills_config.get("packs", {})
@@ -236,9 +236,7 @@ def _apply_budget(skills: list[str], skills_config: dict[str, object] | None) ->
     if budget <= 0 or len(skills) <= budget:
         return skills
     priority_map = ecc_priority_map()
-    scored = sorted(
-        (priority_map.get(skill, 3), idx, skill) for idx, skill in enumerate(skills)
-    )
+    scored = sorted((priority_map.get(skill, 3), idx, skill) for idx, skill in enumerate(skills))
     selected = {skill for _, _, skill in scored[:budget]}
     return [skill for skill in skills if skill in selected]
 

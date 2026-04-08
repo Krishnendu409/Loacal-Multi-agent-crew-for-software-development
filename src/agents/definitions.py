@@ -96,6 +96,7 @@ def _apply_skill_config(
 # Agent factories
 # ---------------------------------------------------------------------------
 
+
 def _ceo_planner(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="CEO Planner",
@@ -295,9 +296,7 @@ def _database_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None
     )
 
 
-def _api_integration_engineer(
-    llm: "OllamaClient", llm_config: dict[str, object] | None
-) -> Agent:
+def _api_integration_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="API Integration Engineer",
         goal=(
@@ -345,9 +344,7 @@ def _backend_developer(llm: "OllamaClient", llm_config: dict[str, object] | None
     )
 
 
-def _data_analytics_engineer(
-    llm: "OllamaClient", llm_config: dict[str, object] | None
-) -> Agent:
+def _data_analytics_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="Data/Analytics Engineer",
         goal=(
@@ -542,9 +539,7 @@ def _technical_writer(llm: "OllamaClient", llm_config: dict[str, object] | None)
     )
 
 
-def _sre_reliability_engineer(
-    llm: "OllamaClient", llm_config: dict[str, object] | None
-) -> Agent:
+def _sre_reliability_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Agent:
     return Agent(
         role="SRE / Reliability Engineer",
         goal=(
