@@ -169,6 +169,35 @@ _DEFAULTS: dict[str, Any] = {
     },
 }
 
+_REASONING_ROLES = (
+    "ceo_planner",
+    "market_researcher",
+    "customer_support_feedback_analyst",
+    "product_manager",
+    "architect",
+    "ui_ux_designer",
+    "technical_writer",
+    "release_manager",
+)
+
+_CODING_ROLES = (
+    "database_engineer",
+    "api_integration_engineer",
+    "frontend_developer",
+    "backend_developer",
+    "data_analytics_engineer",
+    "sre_reliability_engineer",
+    "devops_engineer",
+)
+
+_CRITIC_ROLES = (
+    "compliance_privacy_specialist",
+    "performance_engineer",
+    "security_engineer",
+    "qa_engineer",
+    "code_reviewer",
+)
+
 
 def load_config(path: str | Path | None = None) -> dict[str, Any]:
     """Load configuration from *path* (defaults to ``config.yaml`` in project root).
@@ -180,8 +209,11 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
     ==========================================  ============================================
     Variable                                    Setting
     ==========================================  ============================================
-    ``OLLAMA_BASE_URL``                         ``llm.base_url``
+    ``OLLAMA_BASE_URL`` / ``OLLAMA_URL``        ``llm.base_url``
     ``OLLAMA_MODEL``                            ``llm.model``
+    ``MODEL_REASONING``                         overrides routing for reasoning/planning roles
+    ``MODEL_CODING``                            overrides routing for implementation roles
+    ``MODEL_CRITIC``                            overrides routing for reviewer/specialist roles
     ``OLLAMA_RETRIES``                          ``llm.retries`` (integer)
     ``OLLAMA_TIMEOUT``                          ``llm.timeout_seconds`` (integer)
     ``OLLAMA_TEMPERATURE``                      ``llm.options.temperature`` (float)
@@ -231,6 +263,14 @@ def _validate_config(cfg: dict[str, Any]) -> None:
             )
 
     _validate_model_ref(llm_cfg.get("model"), "llm.model")
+    retries = llm_cfg.get("retries")
+    if not isinstance(retries, int) or retries < 0:
+        raise ValueError("Invalid config: 'llm.retries' must be a non-negative integer.")
+    timeout_seconds = llm_cfg.get("timeout_seconds")
+    if timeout_seconds is not None and (
+        not isinstance(timeout_seconds, int) or timeout_seconds <= 0
+    ):
+        raise ValueError("Invalid config: 'llm.timeout_seconds' must be a positive integer.")
 
     routing = llm_cfg.get("routing", {})
     if not isinstance(routing, dict):
@@ -270,6 +310,16 @@ def _validate_config(cfg: dict[str, Any]) -> None:
             )
         if not isinstance(options, dict):
             raise ValueError(f"Invalid config: 'llm.role_options.{role}' must be a mapping.")
+        num_predict = options.get("num_predict")
+        if num_predict is not None and (not isinstance(num_predict, int) or num_predict <= 0):
+            raise ValueError(
+                f"Invalid config: 'llm.role_options.{role}.num_predict' must be a positive integer."
+            )
+        temperature = options.get("temperature")
+        if temperature is not None and not isinstance(temperature, (int, float)):
+            raise ValueError(
+                f"Invalid config: 'llm.role_options.{role}.temperature' must be numeric."
+            )
 
     role_retries = llm_cfg.get("role_retries", {})
     if not isinstance(role_retries, dict):
@@ -288,11 +338,28 @@ def _validate_config(cfg: dict[str, Any]) -> None:
     crew_cfg = cfg.get("crew", {})
     if not isinstance(crew_cfg, dict):
         raise ValueError("Invalid config: 'crew' must be a mapping.")
+    max_fix_iterations = crew_cfg.get("max_fix_iterations")
+    if not isinstance(max_fix_iterations, int) or max_fix_iterations < 0:
+        raise ValueError(
+            "Invalid config: 'crew.max_fix_iterations' must be a non-negative integer."
+        )
     blocking = crew_cfg.get("blocking_severities", ["critical", "major"])
-    if not isinstance(blocking, list) or not all(
-        isinstance(item, str) and item.strip() for item in blocking
+    if (
+        not isinstance(blocking, list)
+        or not blocking
+        or not all(isinstance(item, str) and item.strip() for item in blocking)
     ):
         raise ValueError("Invalid config: 'crew.blocking_severities' must be a non-empty list.")
+    research_timeout_seconds = crew_cfg.get("research_timeout_seconds")
+    if not isinstance(research_timeout_seconds, int) or research_timeout_seconds <= 0:
+        raise ValueError(
+            "Invalid config: 'crew.research_timeout_seconds' must be a positive integer."
+        )
+    research_max_chars = crew_cfg.get("research_max_chars_per_source")
+    if not isinstance(research_max_chars, int) or research_max_chars <= 0:
+        raise ValueError(
+            "Invalid config: 'crew.research_max_chars_per_source' must be a positive integer."
+        )
     research_urls = crew_cfg.get("research_urls", [])
     if not isinstance(research_urls, list):
         raise ValueError("Invalid config: 'crew.research_urls' must be a list.")
@@ -333,6 +400,8 @@ def _apply_env_overrides(cfg: dict[str, Any]) -> None:
 
     # llm overrides
     base_url = _str("OLLAMA_BASE_URL")
+    if base_url is None:
+        base_url = _str("OLLAMA_URL")
     if base_url is not None:
         cfg["llm"]["base_url"] = base_url
     model = _str("OLLAMA_MODEL")
@@ -350,6 +419,24 @@ def _apply_env_overrides(cfg: dict[str, Any]) -> None:
     num_predict = _int("OLLAMA_NUM_PREDICT")
     if num_predict is not None:
         cfg["llm"].setdefault("options", {})["num_predict"] = num_predict
+
+    # legacy role-group aliases
+    model_reasoning = _str("MODEL_REASONING")
+    model_coding = _str("MODEL_CODING")
+    model_critic = _str("MODEL_CRITIC")
+    if model is None:
+        if model_reasoning:
+            cfg["llm"]["model"] = model_reasoning
+        routing = cfg["llm"].setdefault("routing", {})
+        if model_reasoning:
+            for role in _REASONING_ROLES:
+                routing[role] = model_reasoning
+        if model_coding:
+            for role in _CODING_ROLES:
+                routing[role] = model_coding
+        if model_critic:
+            for role in _CRITIC_ROLES:
+                routing[role] = model_critic
 
     # crew overrides
     max_fix_iterations = _int("CREW_MAX_FIX_ITERATIONS")

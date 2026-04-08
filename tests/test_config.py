@@ -144,6 +144,30 @@ def test_load_config_env_override_base_url(tmp_path, monkeypatch):
     assert cfg["llm"]["base_url"] == "http://myserver:11434"
 
 
+def test_load_config_env_override_legacy_base_url(tmp_path, monkeypatch):
+    monkeypatch.setenv("OLLAMA_URL", "http://legacy-host:11434")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["llm"]["base_url"] == "http://legacy-host:11434"
+
+
+def test_load_config_env_override_legacy_role_group_models(tmp_path, monkeypatch):
+    monkeypatch.setenv("MODEL_REASONING", "qwen2.5:7b-instruct")
+    monkeypatch.setenv("MODEL_CODING", "deepseek-coder:6.7b")
+    monkeypatch.setenv("MODEL_CRITIC", "phi3:mini")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["llm"]["routing"]["product_manager"] == "qwen2.5:7b-instruct"
+    assert cfg["llm"]["routing"]["backend_developer"] == "deepseek-coder:6.7b"
+    assert cfg["llm"]["routing"]["qa_engineer"] == "phi3:mini"
+
+
+def test_load_config_modern_model_override_wins_over_legacy_reasoning(tmp_path, monkeypatch):
+    monkeypatch.setenv("OLLAMA_MODEL", "phi3:mini")
+    monkeypatch.setenv("MODEL_REASONING", "deepseek-coder:6.7b")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["llm"]["model"] == "phi3:mini"
+    assert cfg["llm"]["routing"]["product_manager"] == "qwen2.5:7b-instruct"
+
+
 def test_load_config_env_override_retries(tmp_path, monkeypatch):
     monkeypatch.setenv("OLLAMA_RETRIES", "3")
     cfg = load_config(tmp_path / "nonexistent.yaml")
@@ -235,4 +259,18 @@ def test_load_config_rejects_negative_role_retries(tmp_path):
         )
     )
     with pytest.raises(ValueError, match="non-negative integer"):
+        load_config(config_file)
+
+
+def test_load_config_rejects_invalid_timeout(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("llm:\n  timeout_seconds: 0\n")
+    with pytest.raises(ValueError, match="llm.timeout_seconds"):
+        load_config(config_file)
+
+
+def test_load_config_rejects_empty_blocking_severities(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("crew:\n  blocking_severities: []\n")
+    with pytest.raises(ValueError, match="blocking_severities"):
         load_config(config_file)
