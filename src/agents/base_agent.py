@@ -71,22 +71,16 @@ class Agent:
         """
         user_message_parts = [f"## Your Task\n\n{task_description}"]
         if requirements.strip():
-            user_message_parts.append(
-                f"## Original Stakeholder Requirements\n\n{requirements}"
-            )
+            user_message_parts.append(f"## Original Stakeholder Requirements\n\n{requirements}")
         if context.strip():
-            user_message_parts.append(
-                f"## Context from previous team members\n\n{context}"
-            )
+            user_message_parts.append(f"## Context from previous team members\n\n{context}")
         if must_address:
             checklist = "\n".join(f"- {item}" for item in must_address)
             user_message_parts.append(
                 "## Must-Address Checklist from QA/Reviewer\n\n"
                 f"{checklist}\n\nAddress every item explicitly in your response."
             )
-        user_message_parts.append(
-            "Please provide your best professional response now."
-        )
+        user_message_parts.append("Please provide your best professional response now.")
         user_message = "\n\n---\n\n".join(user_message_parts)
         return self.llm.chat(
             self._system_prompt(),

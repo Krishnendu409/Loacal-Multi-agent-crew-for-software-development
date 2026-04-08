@@ -11,18 +11,40 @@ import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 from src.agents.base_agent import Agent
-from src.execution.runner import ExecutionResult, ExecutionRunner
-from src.execution.sandbox import Sandbox
-from src.memory.store import MemoryStore
-from src.project.generator import ProjectGenerator
-from src.protocol.messages import AgentMessage, AgentResult
 from src.tasks.software_dev_tasks import TASKS, Task
 from src.utils import display
-from src.utils.fs import atomic_write_text, next_versioned_path
+
+# ---------------------------------------------------------------------------
+# Agent execution order (task keys, used for start_from_role logic)
+# ---------------------------------------------------------------------------
+
+AGENT_ORDER: list[str] = [
+    "ceo_planner",
+    "market_researcher",
+    "customer_support_feedback_analyst",
+    "product_manager",
+    "compliance_privacy_specialist",
+    "architect",
+    "ui_ux_designer",
+    "database_engineer",
+    "api_integration_engineer",
+    "frontend_developer",
+    "backend_developer",
+    "data_analytics_engineer",
+    "performance_engineer",
+    "security_engineer",
+    "qa_engineer",
+    "code_reviewer",
+    "technical_writer",
+    "sre_reliability_engineer",
+    "release_manager",
+    "devops_engineer",
+]
 
 _ROLE_TO_TASK_KEY: dict[str, str] = {
     "CEO Planner": "ceo_planner",
@@ -70,7 +92,7 @@ class DevCrew:
         self.max_fix_iterations = max(0, max_fix_iterations)
         self.stop_on_no_major_issues = stop_on_no_major_issues
         self.blocking_severities = {s.lower() for s in blocking_severities}
-        self._run_manifest: dict[str, object] = {}
+        self._run_manifest: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -156,16 +178,15 @@ class DevCrew:
             self._seed_resume_context(resume_outputs, outputs, context_parts, completed_roles)
 
         role_to_agent = {agent.role: agent for agent in self.agents}
-        role_messages: dict[str, AgentMessage] = {}
-        outputs: dict[str, str] = {}
 
+        # Phase 1: Strategy agents
         strategy_roles = [
             "CEO Planner",
             "Market Researcher",
+            "Customer Support/Feedback Analyst",
             "Product Manager",
-            "Software Architect",
+            "Compliance & Privacy Specialist",
         ]
-
         for role in strategy_roles:
             agent = role_to_agent.get(role)
             if agent is None:
@@ -180,16 +201,7 @@ class DevCrew:
                 outputs=outputs,
                 project_name=project_name,
             )
-            outputs[role] = result.raw_text
-            memory.append_history(
-                {
-                    "phase": "strategy",
-                    "role": role,
-                    "status": result.status,
-                    "issues": result.issues,
-                }
-            )
-            self._save_agent_artifacts(project_name, role, result, iteration=1)
+            completed_roles.add(role)
 
         if require_strategy_approval and strategy_approval_callback:
             strategy_outputs = {role: outputs[role] for role in strategy_roles if role in outputs}
@@ -250,94 +262,40 @@ class DevCrew:
                 # findings with no subsequent fix pass – they add noise without
                 # any actionable outcome.
                 is_last_iteration = iteration >= self.max_fix_iterations
-                can_apply_fix = implementation_agents and not is_last_iteration
+                can_apply_fix = bool(implementation_agents) and not is_last_iteration
                 if is_last_iteration and not implementation_agents:
                     break
 
-                round_findings: list[str] = []
                 for review_agent in [performance_agent, qa_agent, security_agent, reviewer_agent]:
                     if review_agent is None:
                         continue
                     if not self._should_run_role(review_agent.role, start_order, role_to_key):
                         completed_roles.add(review_agent.role)
                         continue
-                    response = self._execute_agent(
+                    self._execute_agent(
                         agent=review_agent,
-                        requirements=self._requirements_with_research(requirements, research_context),
+                        requirements=self._requirements_with_research(
+                            requirements, research_context
+                        ),
                         context_parts=context_parts,
                         outputs=outputs,
                         project_name=project_name,
                         must_address=must_address if must_address else None,
                     )
+                    completed_roles.add(review_agent.role)
 
-            execution_result = self._execute_project_checks(runner, project_dir)
-            memory.append_history(
-                {
-                    "phase": "execution",
-                    "iteration": iteration,
-                    "ok": execution_result.ok,
-                    "returncode": execution_result.returncode,
-                }
-            )
-            if not execution_result.ok:
-                memory.append_error(
-                    {
-                        "iteration": iteration,
-                        "stderr": execution_result.stderr[-5000:],
-                        "stdout": execution_result.stdout[-5000:],
-                    }
+                combined_issues = self._extract_issues(
+                    outputs, [performance_agent, qa_agent, security_agent, reviewer_agent]
                 )
-
-            review_findings: list[str] = []
-            for role in review_roles:
-                agent = role_to_agent.get(role)
-                if agent is None:
-                    continue
-                task = self._task_for(agent)
-                review_input = self._compose_input_payload(
-                    role_messages,
-                    requirements,
-                    must_address,
-                    execution_result=execution_result,
-                )
-                result = self._execute_structured_agent(
-                    agent=agent,
-                    requirements=requirements,
-                    incoming=review_input,
-                    task_description=task.render(requirements=requirements),
-                )
-                role_messages[role] = self._to_message(task=task.title, input_payload=review_input, result=result)
-                outputs[role] = result.raw_text
-                self._save_agent_artifacts(project_name, role, result, iteration=iteration)
-                review_findings.extend(result.issues)
-
-            combined_issues = list(dict.fromkeys([*review_findings, *self._execution_issues(execution_result)]))
-            major_issues = [i for i in combined_issues if self._is_major(i)]
-            score = (len(major_issues) * self.MAJOR_ISSUE_WEIGHT) + (
-                len(combined_issues) * self.ISSUE_WEIGHT
-            )
-
-            if score < best_score:
-                best_score = score
-                best_snapshot = {
-                    "iteration": iteration,
-                    "issues": combined_issues,
-                    "execution_ok": execution_result.ok,
-                    "outputs": outputs.copy(),
-                }
-
-            memory.set_best_solution(
-                {
-                    "iteration": iteration,
-                    "score": score,
-                    "major_issue_count": len(major_issues),
-                    "execution_ok": execution_result.ok,
-                }
-            )
+                major_issues = [i for i in combined_issues if self._is_major(i)]
 
                 if not can_apply_fix:
                     break
 
+                if self.stop_on_no_major_issues and not major_issues:
+                    break
+
+                must_address = major_issues
                 fix_task = self._render_fix_task(
                     requirements=requirements,
                     iteration=iteration + 1,
@@ -350,7 +308,9 @@ class DevCrew:
                 for implementation_agent in implementation_agents:
                     self._execute_agent(
                         agent=implementation_agent,
-                        requirements=self._requirements_with_research(requirements, research_context),
+                        requirements=self._requirements_with_research(
+                            requirements, research_context
+                        ),
                         context_parts=context_parts,
                         outputs=outputs,
                         project_name=project_name,
@@ -359,16 +319,11 @@ class DevCrew:
                     )
                     completed_roles.add(implementation_agent.role)
 
-            must_address = combined_issues
-
         executed_roles = set(outputs.keys())
         for agent in self.agents:
             if agent.role in executed_roles:
                 continue
-            if previous_role:
-                display.print_handoff(previous_role, agent.role)
             if not self._should_run_role(agent.role, start_order, role_to_key):
-                previous_role = agent.role
                 completed_roles.add(agent.role)
                 continue
             self._execute_agent(
@@ -378,18 +333,8 @@ class DevCrew:
                 outputs=outputs,
                 project_name=project_name,
             )
-            role_messages[agent.role] = self._to_message(
-                task=task.title,
-                input_payload=incoming,
-                result=result,
-            )
-            outputs[agent.role] = result.raw_text
-            self._save_agent_artifacts(project_name, agent.role, result, iteration=1)
+            completed_roles.add(agent.role)
 
-        snapshot_outputs = best_snapshot.get("outputs") if isinstance(best_snapshot, dict) else None
-        final_outputs = snapshot_outputs if isinstance(snapshot_outputs, dict) else outputs.copy()
-        for role, value in outputs.items():
-            final_outputs.setdefault(role, value)
         if self.save_report:
             self._save_final_report(project_name, requirements, outputs)
         self._save_run_manifest(project_name, outputs)
@@ -400,6 +345,104 @@ class DevCrew:
     # Private helpers
     # ------------------------------------------------------------------
 
+    def _execute_agent(
+        self,
+        *,
+        agent: Agent,
+        requirements: str,
+        context_parts: list[str],
+        outputs: dict[str, str],
+        project_name: str,
+        task_description: str | None = None,
+        must_address: list[str] | None = None,
+    ) -> str:
+        """Execute *agent*, record the result, and return the raw response."""
+        key = _ROLE_TO_TASK_KEY.get(agent.role)
+        if key is None or key not in TASKS:
+            raise ValueError(
+                f"No task defined for role '{agent.role}'. "
+                f"Known roles: {list(_ROLE_TO_TASK_KEY.keys())}"
+            )
+        task = TASKS[key]
+        if task_description is None:
+            task_description = task.render(requirements=requirements)
+        display.print_agent_start(agent.role, task.title)
+        context = "\n\n".join(context_parts) if context_parts else ""
+        started = time.perf_counter()
+        status = "success"
+        error_text = ""
+        response = ""
+        try:
+            response = agent.execute(
+                task_description,
+                context=context,
+                requirements=requirements,
+                must_address=must_address,
+            )
+        except Exception as exc:  # noqa: BLE001
+            status = "failed"
+            error_text = str(exc)
+            raise
+        finally:
+            duration_ms = int((time.perf_counter() - started) * 1000)
+        safe_response = _sanitize_agent_output(response)
+        outputs[agent.role] = safe_response
+        context_parts.append(self._format_context_entry(agent.role, safe_response))
+        self._record_manifest_role(
+            role=agent.role,
+            status=status,
+            duration_ms=duration_ms,
+            output=safe_response,
+            error=error_text,
+            model=str(getattr(agent.llm, "model", "") or ""),
+            retries=agent.llm_retries
+            if agent.llm_retries is not None
+            else int(getattr(agent.llm, "retries", 0) or 0),
+        )
+        display.print_agent_response(agent.role, safe_response)
+        if self.save_individual:
+            self._save_response(project_name, agent.role, safe_response)
+        return safe_response
+
+    @staticmethod
+    def _format_context_entry(role: str, response: str) -> str:
+        summary = DevCrew._summarize_response(response)
+        return f"### {role}\n\n{summary}"
+
+    def _save_response(self, project_name: str, role: str, content: str) -> None:
+        run_dir = self._get_run_dir(project_name)
+        filename = f"{_safe_filename(role)}.md"
+        path = run_dir / filename
+        if path.exists():
+            backup = _next_versioned_path(path)
+            try:
+                path.rename(backup)
+                logger.debug("Preserved original as %s", backup)
+            except OSError as exc:
+                logger.warning("Could not back up %s: %s", path, exc)
+        _atomic_write(path, content)
+        display.print_saved(str(path))
+
+    def _is_major(self, issue: str) -> bool:
+        lower = issue.lower()
+        for severity in self.blocking_severities:
+            if f"[{severity}]" in lower or lower.startswith(f"{severity}:"):
+                return True
+        return False
+
+    def _extract_issues(self, outputs: dict[str, str], agents: list[Agent | None]) -> list[str]:
+        """Extract issue lines from reviewer agent outputs."""
+        issues: list[str] = []
+        for agent in agents:
+            if agent is None:
+                continue
+            response = outputs.get(agent.role, "")
+            for line in response.splitlines():
+                stripped = line.strip().lstrip("- ").strip()
+                if stripped and self._is_major(stripped) and stripped not in issues:
+                    issues.append(stripped)
+        return issues
+
     def _get_task(self, agent: Agent) -> Task:
         """Look up the task definition for *agent*'s role."""
         key = _ROLE_TO_TASK_KEY.get(agent.role)
@@ -408,7 +451,7 @@ class DevCrew:
                 f"No task defined for role '{agent.role}'. "
                 f"Known roles: {list(_ROLE_TO_TASK_KEY.keys())}"
             )
-        return runner.run(["python", "-m", "pytest", "tests", "-q"], cwd=project_dir)
+        return TASKS[key]
 
     @staticmethod
     def _summarize_response(response: str, max_chars: int = 900) -> str:
@@ -431,17 +474,6 @@ class DevCrew:
             return cleaned[:head] + "…"
         return cleaned[:head] + separator + cleaned[-tail:]
 
-    @staticmethod
-    def _execution_issues(result: ExecutionResult) -> list[str]:
-        if result.ok:
-            return []
-        issues = [f"[Major] Execution failed with return code {result.returncode}."]
-        if result.timed_out:
-            issues.append("[Major] Test execution timed out.")
-        if result.stderr.strip():
-            issues.append(f"[Major] stderr: {result.stderr.strip()[:500]}")
-        return issues
-
     def _has_blocking_issues(self, findings: list[str]) -> bool:
         for item in findings:
             lower = item.lower()
@@ -458,7 +490,10 @@ class DevCrew:
         key = role_to_key.get(role)
         if key is None:
             return True
-        return AGENT_ORDER.index(key) >= start_order
+        try:
+            return AGENT_ORDER.index(key) >= start_order
+        except ValueError:
+            return True
 
     @staticmethod
     def _requirements_with_research(requirements: str, research_context: str) -> str:
@@ -475,89 +510,6 @@ class DevCrew:
             f"Original requirements:\n---\n{requirements}\n---"
         )
 
-    def _execute_structured_agent(
-        self,
-        *,
-        agent: Agent,
-        requirements: str,
-        incoming: dict[str, Any],
-        task_description: str,
-        must_address: list[str] | None = None,
-    ) -> str:
-        task = self._get_task(agent) if task_description is None else None
-        title = task.title if task else "Remediate QA/Reviewer issues"
-        display.print_agent_start(agent.role, title)
-
-        context = self._build_context(context_parts)
-        if task_description is not None:
-            rendered_task = task_description
-        else:
-            if task is None:
-                raise ValueError(f"No task available for role '{agent.role}'")
-            rendered_task = task.render(requirements=requirements)
-        started = time.perf_counter()
-        status = "success"
-        error_text = ""
-        try:
-            response = agent.execute(
-                rendered_task,
-                context=context,
-                requirements=requirements,
-                must_address=must_address,
-            )
-        except Exception as exc:  # noqa: BLE001
-            status = "failed"
-            error_text = str(exc)
-            self._record_manifest_role(
-                role=agent.role,
-                status=status,
-                duration_ms=int((time.perf_counter() - started) * 1000),
-                output="",
-                error=error_text,
-                model=agent.llm_model or agent.llm.model,
-                retries=agent.llm_retries if agent.llm_retries is not None else agent.llm.retries,
-            )
-            raise
-        finally:
-            duration_ms = int((time.perf_counter() - started) * 1000)
-        safe_response = _sanitize_agent_output(response)
-        outputs[agent.role] = safe_response
-        context_parts.append(self._format_context_entry(agent.role, safe_response))
-        self._record_manifest_role(
-            role=agent.role,
-            status=status,
-            duration_ms=duration_ms,
-            output=safe_response,
-            error=error_text,
-            model=agent.llm_model or agent.llm.model,
-            retries=agent.llm_retries if agent.llm_retries is not None else agent.llm.retries,
-        )
-        display.print_agent_response(agent.role, safe_response)
-        if self.save_individual:
-            self._save_response(project_name, agent.role, safe_response)
-        return safe_response
-
-    @staticmethod
-    def _to_message(task: str, input_payload: dict[str, Any], result: AgentResult) -> AgentMessage:
-        return AgentMessage(
-            task=task,
-            input=input_payload,
-            output={
-                "files": result.files,
-                "steps": result.steps,
-                "status": result.status,
-                "summary": result.summary,
-            },
-            issues=result.issues,
-            next_steps=result.steps,
-        )
-
-    def _task_for(self, agent: Agent) -> Task:
-        key = _ROLE_TO_TASK_KEY.get(agent.role)
-        if key is None or key not in TASKS:
-            raise ValueError(f"No task defined for role '{agent.role}'.")
-        return TASKS[key]
-
     def _ensure_output_dir(self, project_name: str) -> Path:
         safe_name = _safe_filename(project_name)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -569,24 +521,6 @@ class DevCrew:
         if not hasattr(self, "_run_dir"):
             self._run_dir = self._ensure_output_dir(project_name)
         return self._run_dir
-
-    def _save_agent_artifacts(self, project_name: str, role: str, result: AgentResult, iteration: int) -> None:
-        if not self.save_individual:
-            return
-        run_dir = self._get_run_dir(project_name)
-        filename = f"{_safe_filename(role)}.md"
-        path = run_dir / filename
-        # If the file already exists (fix-pass overwrite), rename the original
-        # to a versioned backup before writing the new version.
-        if path.exists():
-            backup = _next_versioned_path(path)
-            try:
-                path.rename(backup)
-                logger.debug("Preserved original as %s", backup)
-            except OSError as exc:
-                logger.warning("Could not back up %s: %s", path, exc)
-        _atomic_write(path, content)
-        display.print_saved(str(path))
 
     def _save_final_report(
         self, project_name: str, requirements: str, outputs: dict[str, str]
@@ -693,9 +627,7 @@ def _sanitize_agent_output(content: str) -> str:
     text = _SCRIPT_TAG_RE.sub("[redacted-script-tag]", text)
     text = _PROMPT_INJECTION_RE.sub("[redacted-prompt-injection]", text)
     # Keep tabs/newlines, drop other control characters.
-    text = "".join(
-        ch for ch in text if ch in ("\n", "\r", "\t") or ord(ch) >= 32
-    )
+    text = "".join(ch for ch in text if ch in ("\n", "\r", "\t") or ord(ch) >= 32)
     return text
 
 
@@ -722,9 +654,7 @@ def _atomic_write(path: Path, content: str, encoding: str = "utf-8") -> None:
     silently leaving a partial file.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_fd, tmp_name = tempfile.mkstemp(
-        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
-    )
+    tmp_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
         with os.fdopen(tmp_fd, "w", encoding=encoding) as fh:
             fh.write(content)

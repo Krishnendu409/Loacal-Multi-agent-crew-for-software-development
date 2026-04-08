@@ -29,10 +29,7 @@ def fetch_research_context(
             collapsed = " ".join(text.split())
             if not collapsed:
                 continue
-            snippets.append(
-                f"### Source: {clean_url}\n"
-                f"{collapsed[:max_chars_per_source]}"
-            )
+            snippets.append(f"### Source: {clean_url}\n{collapsed[:max_chars_per_source]}")
         except (OSError, URLError):
             snippets.append(f"### Source: {clean_url}\n(unavailable during this run)")
     if not snippets:

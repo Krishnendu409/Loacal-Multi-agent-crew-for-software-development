@@ -87,7 +87,12 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="backend-patterns",
         description="Apply robust backend design and implementation patterns.",
         category="implementation",
-        recommended_roles=("backend_developer", "database_engineer", "api_integration_engineer", "code_reviewer"),
+        recommended_roles=(
+            "backend_developer",
+            "database_engineer",
+            "api_integration_engineer",
+            "code_reviewer",
+        ),
         priority=1,
     ),
     "frontend_patterns": CanonicalSkill(
@@ -103,7 +108,12 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="ux-design",
         description="Design user-centered flows with clear interaction and usability principles.",
         category="design",
-        recommended_roles=("ui_ux_designer", "frontend_developer", "product_manager", "qa_engineer"),
+        recommended_roles=(
+            "ui_ux_designer",
+            "frontend_developer",
+            "product_manager",
+            "qa_engineer",
+        ),
         priority=1,
     ),
     "accessibility_review": CanonicalSkill(
@@ -172,7 +182,12 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="deployment-patterns",
         description="Use repeatable production deployment strategies with rollback readiness.",
         category="operations",
-        recommended_roles=("devops_engineer", "sre_reliability_engineer", "release_manager", "backend_developer"),
+        recommended_roles=(
+            "devops_engineer",
+            "sre_reliability_engineer",
+            "release_manager",
+            "backend_developer",
+        ),
         priority=1,
     ),
     "docker_patterns": CanonicalSkill(
@@ -219,7 +234,12 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="github-ops",
         description="Use PR, CI, and repository workflow best practices.",
         category="operations",
-        recommended_roles=("release_manager", "code_reviewer", "devops_engineer", "backend_developer"),
+        recommended_roles=(
+            "release_manager",
+            "code_reviewer",
+            "devops_engineer",
+            "backend_developer",
+        ),
         priority=2,
     ),
     "prompt_optimizer": CanonicalSkill(
@@ -251,7 +271,12 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="database-migrations",
         description="Design safe, reversible schema evolution.",
         category="data",
-        recommended_roles=("architect", "database_engineer", "backend_developer", "devops_engineer"),
+        recommended_roles=(
+            "architect",
+            "database_engineer",
+            "backend_developer",
+            "devops_engineer",
+        ),
         priority=2,
     ),
     "postgres_patterns": CanonicalSkill(
@@ -338,7 +363,12 @@ ECC_CANONICAL_SKILLS: dict[str, CanonicalSkill] = {
         label="verification-loop",
         description="Continuously verify assumptions and results before handoff.",
         category="quality",
-        recommended_roles=("backend_developer", "performance_engineer", "qa_engineer", "code_reviewer"),
+        recommended_roles=(
+            "backend_developer",
+            "performance_engineer",
+            "qa_engineer",
+            "code_reviewer",
+        ),
         priority=1,
     ),
     "terminal_ops": CanonicalSkill(
@@ -448,9 +478,7 @@ def _validate_bidirectional_conflicts() -> None:
         for conflict_key in skill.conflict_with:
             other = ECC_CANONICAL_SKILLS.get(conflict_key)
             if not other:
-                raise ValueError(
-                    f"Invalid conflict key '{conflict_key}' in skill '{skill.key}'"
-                )
+                raise ValueError(f"Invalid conflict key '{conflict_key}' in skill '{skill.key}'")
             if skill.key not in other.conflict_with:
                 raise ValueError(
                     f"Conflict relationship must be bidirectional: "
