@@ -6,6 +6,7 @@ easily swap backends in the future.
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 from typing import Any
@@ -43,8 +44,9 @@ class OllamaClient:
         self.timeout_seconds = timeout_seconds
         self._client: Any = None
         self._client_lock = threading.Lock()
-        self._cache: dict[tuple[str, str, str], str] = {}
+        self._cache: dict[tuple[str, str, str, str], str] = {}
         self._cache_lock = threading.Lock()
+        self._max_cache_entries = 256
 
     def _get_client(self) -> Any:
         """Return the shared Ollama client, creating it on first use (thread-safe)."""
@@ -79,6 +81,7 @@ class OllamaClient:
         merged_options = dict(self.options)
         if options:
             merged_options.update(options)
+        options_signature = self._options_signature(merged_options)
 
         model_candidates = [model or self.model]
         if fallback_models:
@@ -92,6 +95,7 @@ class OllamaClient:
                 candidate,
                 system_prompt,
                 user_message,
+                options_signature,
             )
             with self._cache_lock:
                 if cache_key in self._cache:
@@ -107,6 +111,10 @@ class OllamaClient:
                     content = message.get("content") if isinstance(message, dict) else None
                     if isinstance(content, str):
                         with self._cache_lock:
+                            if len(self._cache) >= self._max_cache_entries:
+                                oldest = next(iter(self._cache), None)
+                                if oldest is not None:
+                                    self._cache.pop(oldest, None)
                             self._cache[cache_key] = content
                         return content
                     raise RuntimeError("Ollama response missing message.content")
@@ -118,3 +126,12 @@ class OllamaClient:
 
         error_text = "; ".join(errors) if errors else "unknown error"
         raise RuntimeError(f"Ollama chat failed across model candidates: {error_text}")
+
+    @staticmethod
+    def _options_signature(options: dict[str, Any]) -> str:
+        if not options:
+            return ""
+        try:
+            return json.dumps(options, sort_keys=True, default=str, separators=(",", ":"))
+        except (TypeError, ValueError):
+            return repr(options)

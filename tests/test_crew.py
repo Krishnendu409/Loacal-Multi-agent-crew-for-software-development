@@ -454,3 +454,12 @@ def test_kickoff_can_seed_resume_outputs(tmp_path):
     architect = next(a for a in agents if a.role == "Software Architect")
     user_message = architect.llm.chat.call_args[0][1]
     assert "Previously approved spec" in user_message
+
+
+def test_kickoff_reinitializes_run_directory_between_invocations(tmp_path):
+    agent = _make_mock_agent("Product Manager")
+    crew = DevCrew(agents=[agent], output_dir=tmp_path, save_individual=False, save_report=False)
+    crew.kickoff("First run", project_name="project_one")
+    crew.kickoff("Second run", project_name="project_two")
+    manifests = list(tmp_path.rglob("RUN_MANIFEST.json"))
+    assert len(manifests) == 2

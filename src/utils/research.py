@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from urllib.error import URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 
@@ -18,6 +19,12 @@ def fetch_research_context(
         if not isinstance(url, str) or not url.strip():
             continue
         clean_url = url.strip()
+        parsed = urlparse(clean_url)
+        if parsed.scheme not in {"http", "https"}:
+            snippets.append(
+                f"### Source: {clean_url}\n(skipped: unsupported URL scheme; only http/https allowed)"
+            )
+            continue
         try:
             req = Request(
                 clean_url,

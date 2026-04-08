@@ -350,6 +350,53 @@ def test_ollama_client_chat_raises_on_missing_message_content():
             oc.chat("system", "user")
 
 
+def test_ollama_client_cache_includes_options():
+    """Different options must not reuse the same cached response."""
+    from unittest.mock import MagicMock, patch
+
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+
+    def _chat(**kwargs):
+        temperature = (kwargs.get("options") or {}).get("temperature")
+        return {"message": {"content": f"temp={temperature}"}}
+
+    mock_client_instance.chat.side_effect = _chat
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        first = oc.chat("system", "user", options={"temperature": 0.1})
+        second = oc.chat("system", "user", options={"temperature": 0.2})
+
+    assert first == "temp=0.1"
+    assert second == "temp=0.2"
+    assert mock_client_instance.chat.call_count == 2
+
+
+def test_ollama_client_cache_is_bounded():
+    """Cache growth should be bounded to avoid unbounded memory usage."""
+    from unittest.mock import MagicMock, patch
+
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+    mock_client_instance.chat.return_value = {"message": {"content": "ok"}}
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        oc._max_cache_entries = 2
+        oc.chat("system", "user-1")
+        oc.chat("system", "user-2")
+        oc.chat("system", "user-3")
+
+    assert len(oc._cache) == 2
+
+
 def test_register_agent_role_allows_plugin_extension(mock_llm):
     import src.agents.definitions as agent_defs
 
