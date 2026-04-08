@@ -367,6 +367,29 @@ def test_ollama_client_chat_raises_on_missing_message_content():
             oc.chat("system", "user")
 
 
+def test_ollama_client_retries_timeout_with_extended_timeout():
+    """Timeout errors should trigger a retry with a larger timeout budget."""
+    from unittest.mock import MagicMock, patch
+
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    first_client = MagicMock()
+    second_client = MagicMock()
+    first_client.chat.side_effect = TimeoutError("timed out")
+    second_client.chat.return_value = {"message": {"content": "recovered"}}
+    mock_ollama_module.Client.side_effect = [first_client, second_client]
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini", timeout_seconds=120, retries=0)
+        response = oc.chat("system", "user")
+
+    assert response == "recovered"
+    assert mock_ollama_module.Client.call_count == 2
+    assert mock_ollama_module.Client.call_args_list[0].kwargs["timeout"] == 120
+    assert mock_ollama_module.Client.call_args_list[1].kwargs["timeout"] == 240
+
+
 def test_ollama_client_cache_includes_options():
     """Different options must not reuse the same cached response."""
     from unittest.mock import MagicMock, patch

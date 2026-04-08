@@ -230,7 +230,7 @@ llm:
   model: qwen2.5:7b-instruct
   base_url: http://localhost:11434
   retries: 1
-  timeout_seconds: 120
+  timeout_seconds: 600
   allowed_models:
     - qwen2.5:7b-instruct
     - deepseek-coder:6.7b
