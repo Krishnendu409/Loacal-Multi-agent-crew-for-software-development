@@ -105,6 +105,7 @@ _DEFAULTS: dict[str, Any] = {
             "release_manager": {"num_predict": 1024, "temperature": 0.2},
             "devops_engineer": {"num_predict": 1024, "temperature": 0.2},
         },
+        "role_retries": {},
     },
     "agents": {
         "ceo_planner": True,
@@ -137,6 +138,11 @@ _DEFAULTS: dict[str, Any] = {
         "max_fix_iterations": 1,
         "stop_on_no_major_issues": True,
         "require_strategy_approval": True,
+        "blocking_severities": ["critical", "major"],
+        "research_mode": False,
+        "research_urls": [],
+        "research_timeout_seconds": 10,
+        "research_max_chars_per_source": 2000,
     },
     "skills": {
         "include_default_role_skills": True,
@@ -264,6 +270,32 @@ def _validate_config(cfg: dict[str, Any]) -> None:
             )
         if not isinstance(options, dict):
             raise ValueError(f"Invalid config: 'llm.role_options.{role}' must be a mapping.")
+
+    role_retries = llm_cfg.get("role_retries", {})
+    if not isinstance(role_retries, dict):
+        raise ValueError("Invalid config: 'llm.role_retries' must be a mapping.")
+    for role, retries in role_retries.items():
+        if known_roles and role not in known_roles:
+            raise ValueError(
+                f"Invalid config: 'llm.role_retries.{role}' references unknown role. "
+                f"Known roles: {sorted(known_roles)}"
+            )
+        if not isinstance(retries, int) or retries < 0:
+            raise ValueError(
+                f"Invalid config: 'llm.role_retries.{role}' must be a non-negative integer."
+            )
+
+    crew_cfg = cfg.get("crew", {})
+    if not isinstance(crew_cfg, dict):
+        raise ValueError("Invalid config: 'crew' must be a mapping.")
+    blocking = crew_cfg.get("blocking_severities", ["critical", "major"])
+    if not isinstance(blocking, list) or not all(
+        isinstance(item, str) and item.strip() for item in blocking
+    ):
+        raise ValueError("Invalid config: 'crew.blocking_severities' must be a non-empty list.")
+    research_urls = crew_cfg.get("research_urls", [])
+    if not isinstance(research_urls, list):
+        raise ValueError("Invalid config: 'crew.research_urls' must be a list.")
 
 
 def _apply_env_overrides(cfg: dict[str, Any]) -> None:

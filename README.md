@@ -188,6 +188,16 @@ python main.py run \
   --requirements "Build a REST API for a todo list application with CRUD operations"
 ```
 
+**Resume from a specific role using previous outputs**:
+
+```bash
+python main.py run \
+  --project "Todo API" \
+  --requirements "Build a REST API for a todo list application with CRUD operations" \
+  --resume-run-dir output/todo_api_20260408_120000 \
+  --start-from-role "Security Engineer"
+```
+
 **Use a different model for this run**:
 
 ```bash
@@ -242,6 +252,7 @@ llm:
     backend_developer: {temperature: 0.2, num_predict: 2048}
     qa_engineer: {temperature: 0.1, num_predict: 1024}
     code_reviewer: {temperature: 0.1, num_predict: 1024}
+  role_retries: {}
 
 agents:
   ceo_planner: true
@@ -274,6 +285,11 @@ crew:
   max_fix_iterations: 1
   stop_on_no_major_issues: true
   require_strategy_approval: true
+  blocking_severities: [critical, major]
+  research_mode: false
+  research_urls: []
+  research_timeout_seconds: 10
+  research_max_chars_per_source: 2000
 
 skills:
   include_default_role_skills: true
@@ -389,6 +405,9 @@ pip install pytest
 python -m pytest tests/ -v
 ```
 
+Each run also writes `RUN_MANIFEST.json` in the run output folder with per-role
+timing, model, retry, status, and structured section metadata.
+
 ---
 
 ## ✅ Quality Checks
@@ -396,7 +415,6 @@ python -m pytest tests/ -v
 ```bash
 pip install ruff mypy pip-audit
 python -m ruff check .
-python -m ruff format --check .
 python -m mypy src main.py
 pip-audit
 ```

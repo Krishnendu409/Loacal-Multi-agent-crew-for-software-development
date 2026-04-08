@@ -221,3 +221,18 @@ def test_load_config_rejects_unknown_routing_role(tmp_path):
     )
     with pytest.raises(ValueError, match="unknown role"):
         load_config(config_file)
+
+
+def test_load_config_rejects_negative_role_retries(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        textwrap.dedent(
+            """\
+            llm:
+              role_retries:
+                backend_developer: -1
+            """
+        )
+    )
+    with pytest.raises(ValueError, match="non-negative integer"):
+        load_config(config_file)

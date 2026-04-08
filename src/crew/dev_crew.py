@@ -8,10 +8,12 @@ to the next one, mimicking real team communication.
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 import os
 import re
 import tempfile
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -65,6 +67,7 @@ class DevCrew:
         save_report: bool = True,
         max_fix_iterations: int = 1,
         stop_on_no_major_issues: bool = True,
+        blocking_severities: tuple[str, ...] = ("critical", "major"),
     ) -> None:
         self.agents = agents
         self.output_dir = Path(output_dir)
@@ -72,12 +75,22 @@ class DevCrew:
         self.save_report = save_report
         self.max_fix_iterations = max(0, max_fix_iterations)
         self.stop_on_no_major_issues = stop_on_no_major_issues
+        self.blocking_severities = {s.lower() for s in blocking_severities}
+        self._run_manifest: dict[str, object] = {}
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def kickoff(self, requirements: str, project_name: str = "project") -> dict[str, str]:
+    def kickoff(
+        self,
+        requirements: str,
+        project_name: str = "project",
+        *,
+        start_from_role: str | None = None,
+        resume_outputs: dict[str, str] | None = None,
+        research_context: str = "",
+    ) -> dict[str, str]:
         """Run the full pipeline and return a dict of role → response.
 
         Args:
@@ -89,6 +102,9 @@ class DevCrew:
             project_name=project_name,
             require_strategy_approval=False,
             strategy_approval_callback=None,
+            start_from_role=start_from_role,
+            resume_outputs=resume_outputs,
+            research_context=research_context,
         )
 
     def kickoff_with_strategy_gate(
@@ -98,6 +114,9 @@ class DevCrew:
         *,
         require_strategy_approval: bool = True,
         strategy_approval_callback: Callable[[dict[str, str]], bool] | None = None,
+        start_from_role: str | None = None,
+        resume_outputs: dict[str, str] | None = None,
+        research_context: str = "",
     ) -> dict[str, str]:
         """Run the full pipeline with optional strategy approval gate."""
         return self._kickoff_internal(
@@ -105,6 +124,9 @@ class DevCrew:
             project_name=project_name,
             require_strategy_approval=require_strategy_approval,
             strategy_approval_callback=strategy_approval_callback,
+            start_from_role=start_from_role,
+            resume_outputs=resume_outputs,
+            research_context=research_context,
         )
 
     def _kickoff_internal(
@@ -114,10 +136,31 @@ class DevCrew:
         project_name: str,
         require_strategy_approval: bool,
         strategy_approval_callback: Callable[[dict[str, str]], bool] | None,
+        start_from_role: str | None,
+        resume_outputs: dict[str, str] | None,
+        research_context: str,
     ) -> dict[str, str]:
         outputs: dict[str, str] = {}
         context_parts: list[str] = []
         completed_roles: set[str] = set()
+        role_to_key = {role: key for role, key in _ROLE_TO_TASK_KEY.items()}
+        start_order = -1
+        if start_from_role:
+            start_key = role_to_key.get(start_from_role)
+            if start_key is None:
+                raise ValueError(
+                    f"Unknown start_from_role '{start_from_role}'. "
+                    f"Known roles: {sorted(_ROLE_TO_TASK_KEY.keys())}"
+                )
+            start_order = AGENT_ORDER.index(start_key)
+
+        self._initialize_manifest(
+            project_name=project_name,
+            start_from_role=start_from_role,
+            requirements=requirements,
+        )
+        if resume_outputs:
+            self._seed_resume_context(resume_outputs, outputs, context_parts, completed_roles)
 
         role_to_agent = {agent.role: agent for agent in self.agents}
 
@@ -133,9 +176,12 @@ class DevCrew:
             agent = role_to_agent.get(role)
             if agent is None:
                 continue
+            if not self._should_run_role(role, start_order, role_to_key):
+                completed_roles.add(role)
+                continue
             self._execute_agent(
                 agent=agent,
-                requirements=requirements,
+                requirements=self._requirements_with_research(requirements, research_context),
                 context_parts=context_parts,
                 outputs=outputs,
                 project_name=project_name,
@@ -161,9 +207,12 @@ class DevCrew:
             agent = role_to_agent.get(role)
             if agent is None:
                 continue
+            if not self._should_run_role(role, start_order, role_to_key):
+                completed_roles.add(role)
+                continue
             self._execute_agent(
                 agent=agent,
-                requirements=requirements,
+                requirements=self._requirements_with_research(requirements, research_context),
                 context_parts=context_parts,
                 outputs=outputs,
                 project_name=project_name,
@@ -207,9 +256,12 @@ class DevCrew:
                 for review_agent in [performance_agent, qa_agent, security_agent, reviewer_agent]:
                     if review_agent is None:
                         continue
+                    if not self._should_run_role(review_agent.role, start_order, role_to_key):
+                        completed_roles.add(review_agent.role)
+                        continue
                     response = self._execute_agent(
                         agent=review_agent,
-                        requirements=requirements,
+                        requirements=self._requirements_with_research(requirements, research_context),
                         context_parts=context_parts,
                         outputs=outputs,
                         project_name=project_name,
@@ -241,7 +293,7 @@ class DevCrew:
                 for implementation_agent in implementation_agents:
                     self._execute_agent(
                         agent=implementation_agent,
-                        requirements=requirements,
+                        requirements=self._requirements_with_research(requirements, research_context),
                         context_parts=context_parts,
                         outputs=outputs,
                         project_name=project_name,
@@ -262,9 +314,13 @@ class DevCrew:
                 continue
             if previous_role:
                 display.print_handoff(previous_role, agent.role)
+            if not self._should_run_role(agent.role, start_order, role_to_key):
+                previous_role = agent.role
+                completed_roles.add(agent.role)
+                continue
             self._execute_agent(
                 agent=agent,
-                requirements=requirements,
+                requirements=self._requirements_with_research(requirements, research_context),
                 context_parts=context_parts,
                 outputs=outputs,
                 project_name=project_name,
@@ -276,6 +332,7 @@ class DevCrew:
 
         if self.save_report:
             self._save_final_report(project_name, requirements, outputs)
+        self._save_run_manifest(project_name, outputs)
 
         return outputs
 
@@ -350,15 +407,29 @@ class DevCrew:
             deduped.append(item)
         return deduped
 
-    @staticmethod
-    def _has_blocking_issues(findings: list[str]) -> bool:
+    def _has_blocking_issues(self, findings: list[str]) -> bool:
         for item in findings:
             lower = item.lower()
-            if "[critical]" in lower or "[major]" in lower:
-                return True
-            if lower.startswith("critical:") or lower.startswith("major:"):
-                return True
+            for severity in self.blocking_severities:
+                if f"[{severity}]" in lower:
+                    return True
+                if lower.startswith(f"{severity}:"):
+                    return True
         return False
+
+    def _should_run_role(self, role: str, start_order: int, role_to_key: dict[str, str]) -> bool:
+        if start_order < 0:
+            return True
+        key = role_to_key.get(role)
+        if key is None:
+            return True
+        return AGENT_ORDER.index(key) >= start_order
+
+    @staticmethod
+    def _requirements_with_research(requirements: str, research_context: str) -> str:
+        if not research_context.strip():
+            return requirements
+        return f"{requirements}\n\n---\n\n{research_context}"
 
     def _render_fix_task(self, requirements: str, iteration: int, reviewer_roles: list[str]) -> str:
         review_scope = ", ".join(reviewer_roles) if reviewer_roles else "review agents"
@@ -391,15 +462,43 @@ class DevCrew:
             if task is None:
                 raise ValueError(f"No task available for role '{agent.role}'")
             rendered_task = task.render(requirements=requirements)
-        response = agent.execute(
-            rendered_task,
-            context=context,
-            requirements=requirements,
-            must_address=must_address,
-        )
+        started = time.perf_counter()
+        status = "success"
+        error_text = ""
+        try:
+            response = agent.execute(
+                rendered_task,
+                context=context,
+                requirements=requirements,
+                must_address=must_address,
+            )
+        except Exception as exc:  # noqa: BLE001
+            status = "failed"
+            error_text = str(exc)
+            self._record_manifest_role(
+                role=agent.role,
+                status=status,
+                duration_ms=int((time.perf_counter() - started) * 1000),
+                output="",
+                error=error_text,
+                model=agent.llm_model or agent.llm.model,
+                retries=agent.llm_retries if agent.llm_retries is not None else agent.llm.retries,
+            )
+            raise
+        finally:
+            duration_ms = int((time.perf_counter() - started) * 1000)
         safe_response = _sanitize_agent_output(response)
         outputs[agent.role] = safe_response
         context_parts.append(self._format_context_entry(agent.role, safe_response))
+        self._record_manifest_role(
+            role=agent.role,
+            status=status,
+            duration_ms=duration_ms,
+            output=safe_response,
+            error=error_text,
+            model=agent.llm_model or agent.llm.model,
+            retries=agent.llm_retries if agent.llm_retries is not None else agent.llm.retries,
+        )
         display.print_agent_response(agent.role, safe_response)
         if self.save_individual:
             self._save_response(project_name, agent.role, safe_response)
@@ -467,6 +566,67 @@ class DevCrew:
         _atomic_write(path, "\n".join(lines))
         display.print_saved(str(path))
 
+    def _initialize_manifest(
+        self, *, project_name: str, start_from_role: str | None, requirements: str
+    ) -> None:
+        self._run_manifest = {
+            "project_name": project_name,
+            "started_at": datetime.datetime.now().isoformat(timespec="seconds"),
+            "start_from_role": start_from_role,
+            "requirements_chars": len(requirements),
+            "roles": [],
+        }
+
+    def _record_manifest_role(
+        self,
+        *,
+        role: str,
+        status: str,
+        duration_ms: int,
+        output: str,
+        error: str,
+        model: str,
+        retries: int,
+    ) -> None:
+        if "roles" not in self._run_manifest:
+            self._run_manifest["roles"] = []
+        roles = self._run_manifest["roles"]
+        if isinstance(roles, list):
+            roles.append(
+                {
+                    "role": role,
+                    "status": status,
+                    "duration_ms": duration_ms,
+                    "output_chars": len(output),
+                    "model": str(model),
+                    "retries": int(retries) if isinstance(retries, int) else 0,
+                    "sections": _extract_structured_sections(output),
+                    "error": error,
+                }
+            )
+
+    def _save_run_manifest(self, project_name: str, outputs: dict[str, str]) -> None:
+        run_dir = self._get_run_dir(project_name)
+        self._run_manifest["completed_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+        self._run_manifest["total_roles"] = len(outputs)
+        self._run_manifest["status"] = "completed"
+        path = run_dir / "RUN_MANIFEST.json"
+        _atomic_write(path, json.dumps(self._run_manifest, indent=2, ensure_ascii=False))
+        display.print_saved(str(path))
+
+    def _seed_resume_context(
+        self,
+        resume_outputs: dict[str, str],
+        outputs: dict[str, str],
+        context_parts: list[str],
+        completed_roles: set[str],
+    ) -> None:
+        for role, content in resume_outputs.items():
+            safe_content = _sanitize_agent_output(content)
+            outputs[role] = safe_content
+            context_parts.append(self._format_context_entry(role, safe_content))
+            completed_roles.add(role)
+
 
 def _safe_filename(name: str) -> str:
     """Convert a string into a filesystem-safe filename fragment."""
@@ -493,6 +653,22 @@ def _sanitize_agent_output(content: str) -> str:
         ch for ch in text if ch in ("\n", "\r", "\t") or ord(ch) >= 32
     )
     return text
+
+
+def _extract_structured_sections(content: str) -> dict[str, str]:
+    """Extract markdown heading sections into a machine-readable mapping."""
+    sections: dict[str, str] = {}
+    current = "full_text"
+    buffer: list[str] = []
+    for line in content.splitlines():
+        if line.strip().startswith("#"):
+            sections[current] = "\n".join(buffer).strip()
+            current = line.strip().lstrip("#").strip().lower().replace(" ", "_")
+            buffer = []
+            continue
+        buffer.append(line)
+    sections[current] = "\n".join(buffer).strip()
+    return {k: v for k, v in sections.items() if v}
 
 
 def _atomic_write(path: Path, content: str, encoding: str = "utf-8") -> None:

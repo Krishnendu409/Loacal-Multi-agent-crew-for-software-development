@@ -5,6 +5,7 @@ All LLM calls are mocked so tests run fully offline.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -408,3 +409,50 @@ def test_sanitize_agent_output_redacts_prompt_injection_phrases():
     sanitized = _sanitize_agent_output(raw)
     assert "ignore previous instructions" not in sanitized.lower()
     assert "[redacted-prompt-injection]" in sanitized
+
+
+def test_kickoff_saves_run_manifest(full_crew, tmp_path):
+    full_crew.kickoff("Build a chat app", project_name="test_project")
+    manifests = list(tmp_path.rglob("RUN_MANIFEST.json"))
+    assert len(manifests) == 1
+    payload = json.loads(manifests[0].read_text())
+    assert payload["status"] == "completed"
+    assert isinstance(payload["roles"], list)
+    assert payload["total_roles"] >= 1
+
+
+def test_kickoff_can_start_from_specific_role(tmp_path):
+    roles = [
+        "CEO Planner",
+        "Market Researcher",
+        "Product Manager",
+        "Software Architect",
+        "Backend Developer",
+    ]
+    agents = [_make_mock_agent(r) for r in roles]
+    crew = DevCrew(agents=agents, output_dir=tmp_path)
+    outputs = crew.kickoff(
+        "Build API",
+        project_name="api_project",
+        start_from_role="Software Architect",
+    )
+    assert "CEO Planner" not in outputs
+    assert "Market Researcher" not in outputs
+    assert "Software Architect" in outputs
+    assert "Backend Developer" in outputs
+
+
+def test_kickoff_can_seed_resume_outputs(tmp_path):
+    roles = ["CEO Planner", "Product Manager", "Software Architect"]
+    agents = [_make_mock_agent(r) for r in roles]
+    crew = DevCrew(agents=agents, output_dir=tmp_path)
+    outputs = crew.kickoff(
+        "Build API",
+        project_name="api_project",
+        start_from_role="Software Architect",
+        resume_outputs={"Product Manager": "Previously approved spec"},
+    )
+    assert outputs["Product Manager"] == "Previously approved spec"
+    architect = next(a for a in agents if a.role == "Software Architect")
+    user_message = architect.llm.chat.call_args[0][1]
+    assert "Previously approved spec" in user_message
