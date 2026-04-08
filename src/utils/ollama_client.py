@@ -90,7 +90,11 @@ class OllamaClient:
                         messages=messages,
                         options=merged_options or None,
                     )
-                    return response["message"]["content"]
+                    message = response.get("message", {}) if isinstance(response, dict) else {}
+                    content = message.get("content") if isinstance(message, dict) else None
+                    if isinstance(content, str):
+                        return content
+                    raise RuntimeError("Ollama response missing message.content")
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")
                     if attempt < attempts:

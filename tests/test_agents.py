@@ -328,3 +328,19 @@ def test_ollama_client_chat_reuses_instance_across_calls():
     # The underlying ollama.Client constructor must have been called only once
     mock_ollama_module.Client.assert_called_once()
 
+
+def test_ollama_client_chat_raises_on_missing_message_content():
+    """Malformed responses must raise a clear runtime error."""
+    from unittest.mock import MagicMock, patch
+
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+    mock_client_instance.chat.return_value = {"unexpected": "shape"}
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        with pytest.raises(RuntimeError, match="missing message.content"):
+            oc.chat("system", "user")

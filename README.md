@@ -391,6 +391,18 @@ python -m pytest tests/ -v
 
 ---
 
+## ✅ Quality Checks
+
+```bash
+pip install ruff mypy pip-audit
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy src main.py
+pip-audit
+```
+
+---
+
 ## 💡 Model Policy
 
 This project is configured to use only:

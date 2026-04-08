@@ -12,9 +12,8 @@ import logging
 import os
 import re
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
-from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -386,19 +385,25 @@ class DevCrew:
         display.print_agent_start(agent.role, title)
 
         context = self._build_context(context_parts)
-        rendered_task = task_description or task.render(requirements=requirements)
+        if task_description is not None:
+            rendered_task = task_description
+        else:
+            if task is None:
+                raise ValueError(f"No task available for role '{agent.role}'")
+            rendered_task = task.render(requirements=requirements)
         response = agent.execute(
             rendered_task,
             context=context,
             requirements=requirements,
             must_address=must_address,
         )
-        outputs[agent.role] = response
-        context_parts.append(self._format_context_entry(agent.role, response))
-        display.print_agent_response(agent.role, response)
+        safe_response = _sanitize_agent_output(response)
+        outputs[agent.role] = safe_response
+        context_parts.append(self._format_context_entry(agent.role, safe_response))
+        display.print_agent_response(agent.role, safe_response)
         if self.save_individual:
-            self._save_response(project_name, agent.role, response)
-        return response
+            self._save_response(project_name, agent.role, safe_response)
+        return safe_response
 
     # ------------------------------------------------------------------
     # File I/O
@@ -466,6 +471,28 @@ class DevCrew:
 def _safe_filename(name: str) -> str:
     """Convert a string into a filesystem-safe filename fragment."""
     return "".join(c if c.isalnum() or c in "-_" else "_" for c in name).lower()
+
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+_SCRIPT_TAG_RE = re.compile(r"<\s*/?\s*script\b[^>]*>", flags=re.IGNORECASE)
+_PROMPT_INJECTION_RE = re.compile(
+    r"(ignore\s+previous\s+instructions|disregard\s+all\s+above|override\s+system\s+prompt)",
+    flags=re.IGNORECASE,
+)
+
+
+def _sanitize_agent_output(content: str) -> str:
+    """Sanitize model output before display/save to reduce unsafe rendering vectors."""
+    if not isinstance(content, str):
+        return ""
+    text = _ANSI_ESCAPE_RE.sub("", content)
+    text = _SCRIPT_TAG_RE.sub("[redacted-script-tag]", text)
+    text = _PROMPT_INJECTION_RE.sub("[redacted-prompt-injection]", text)
+    # Keep tabs/newlines, drop other control characters.
+    text = "".join(
+        ch for ch in text if ch in ("\n", "\r", "\t") or ord(ch) >= 32
+    )
+    return text
 
 
 def _atomic_write(path: Path, content: str, encoding: str = "utf-8") -> None:
