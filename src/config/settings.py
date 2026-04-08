@@ -135,7 +135,7 @@ _DEFAULTS: dict[str, Any] = {
         "save_final_report": True,
     },
     "crew": {
-        "max_fix_iterations": 3,
+        "max_fix_iterations": 1,
         "stop_on_no_major_issues": True,
         "require_strategy_approval": True,
         "blocking_severities": ["critical", "major"],

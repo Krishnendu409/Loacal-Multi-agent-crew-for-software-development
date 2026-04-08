@@ -53,7 +53,8 @@ class Agent:
                 '  "steps": ["..."],\n'
                 '  "issues": ["..."],\n'
                 '  "status": "success | failure",\n'
-                '  "summary": "..."\n'
+                '  "summary": "...",\n'
+                '  "handoff_notes": "Handoff Notes for Next Role"\n'
                 "}"
             )
         if self.extra_instructions:

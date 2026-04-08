@@ -183,8 +183,9 @@ class DevCrew:
         strategy_roles = [
             "CEO Planner",
             "Market Researcher",
+            "Customer Support/Feedback Analyst",
             "Product Manager",
-            "Software Architect",
+            "Compliance & Privacy Specialist",
         ]
 
         for role in strategy_roles:

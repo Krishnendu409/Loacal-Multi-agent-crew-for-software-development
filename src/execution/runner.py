@@ -48,10 +48,20 @@ class ExecutionRunner:
                 timed_out=False,
             )
         except subprocess.TimeoutExpired as exc:
+            stdout = (
+                exc.stdout.decode("utf-8", errors="replace")
+                if isinstance(exc.stdout, bytes)
+                else (exc.stdout or "")
+            )
+            stderr = (
+                exc.stderr.decode("utf-8", errors="replace")
+                if isinstance(exc.stderr, bytes)
+                else (exc.stderr or "")
+            )
             return ExecutionResult(
                 command=command,
                 returncode=124,
-                stdout=exc.stdout or "",
-                stderr=(exc.stderr or "") + "\nExecution timed out.",
+                stdout=stdout,
+                stderr=stderr + "\nExecution timed out.",
                 timed_out=True,
             )
