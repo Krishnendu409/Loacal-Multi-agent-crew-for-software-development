@@ -388,8 +388,7 @@ def test_ollama_client_cache_is_bounded():
     mock_ollama_module.Client.return_value = mock_client_instance
 
     with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
-        oc = OllamaClient(model="phi3:mini")
-        oc._max_cache_entries = 2
+        oc = OllamaClient(model="phi3:mini", max_cache_entries=2)
         oc.chat("system", "user-1")
         oc.chat("system", "user-2")
         oc.chat("system", "user-3")

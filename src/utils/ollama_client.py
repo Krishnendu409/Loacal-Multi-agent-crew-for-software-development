@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections import OrderedDict
 from typing import Any
 
 
@@ -36,6 +37,7 @@ class OllamaClient:
         options: dict[str, Any] | None = None,
         retries: int = 1,
         timeout_seconds: int | None = None,
+        max_cache_entries: int = 256,
     ) -> None:
         self.model = model
         self.base_url = base_url
@@ -44,9 +46,10 @@ class OllamaClient:
         self.timeout_seconds = timeout_seconds
         self._client: Any = None
         self._client_lock = threading.Lock()
-        self._cache: dict[tuple[str, str, str, str], str] = {}
+        # cache key: (model, system_prompt, user_message, options_signature)
+        self._cache: OrderedDict[tuple[str, str, str, str], str] = OrderedDict()
         self._cache_lock = threading.Lock()
-        self._max_cache_entries = 256
+        self._max_cache_entries = max(0, int(max_cache_entries))
 
     def _get_client(self) -> Any:
         """Return the shared Ollama client, creating it on first use (thread-safe)."""
@@ -99,6 +102,7 @@ class OllamaClient:
             )
             with self._cache_lock:
                 if cache_key in self._cache:
+                    self._cache.move_to_end(cache_key)
                     return self._cache[cache_key]
             for attempt in range(1, attempts + 1):
                 try:
@@ -111,11 +115,10 @@ class OllamaClient:
                     content = message.get("content") if isinstance(message, dict) else None
                     if isinstance(content, str):
                         with self._cache_lock:
-                            if len(self._cache) >= self._max_cache_entries:
-                                oldest = next(iter(self._cache), None)
-                                if oldest is not None:
-                                    self._cache.pop(oldest, None)
                             self._cache[cache_key] = content
+                            self._cache.move_to_end(cache_key)
+                            while len(self._cache) > self._max_cache_entries:
+                                self._cache.popitem(last=False)
                         return content
                     raise RuntimeError("Ollama response missing message.content")
                 except Exception as exc:  # noqa: BLE001
