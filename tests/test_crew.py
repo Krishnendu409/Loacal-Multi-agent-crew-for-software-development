@@ -29,7 +29,21 @@ _summarize_response = DevCrew._summarize_response
 
 def _make_mock_agent(role: str) -> Agent:
     llm = MagicMock()
-    llm.chat.return_value = f"Response from {role}"
+    if role == "Software Architect":
+        llm.chat.return_value = json.dumps(
+            {
+                "system_diagram_json": {"nodes": ["api", "db"], "edges": [["api", "db"]]},
+                "database_schema": [
+                    {"name": "users", "fields": ["id", "email"], "relationships": []}
+                ],
+                "api_endpoints": [{"method": "GET", "path": "/health", "purpose": "health check"}],
+                "design_decisions": ["Use simple monolith"],
+                "risks": ["Single node deployment"],
+                "handoff_notes": "Proceed to implementation.",
+            }
+        )
+    else:
+        llm.chat.return_value = f"Response from {role}"
     return Agent(role=role, goal="Goal", backstory="Backstory", llm=llm)
 
 
@@ -226,11 +240,9 @@ def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
     backend = next(a for a in agents if a.role == "Backend Developer")
     frontend = next(a for a in agents if a.role == "Frontend Developer")
     security = next(a for a in agents if a.role == "Security Engineer")
-    assert frontend.llm.chat.call_count == 2
+    assert frontend.llm.chat.call_count == 1
     assert backend.llm.chat.call_count == 2
     assert security.llm.chat.call_count >= 1
-    frontend_second_call_user_message = frontend.llm.chat.call_args_list[1][0][1]
-    assert "Must-Address Checklist" in frontend_second_call_user_message
     second_call_user_message = backend.llm.chat.call_args_list[1][0][1]
     assert "Must-Address Checklist" in second_call_user_message
 
@@ -463,3 +475,56 @@ def test_kickoff_reinitializes_run_directory_between_invocations(tmp_path):
     crew.kickoff("Second run", project_name="project_two")
     manifests = list(tmp_path.rglob("RUN_MANIFEST.json"))
     assert len(manifests) == 2
+
+
+def test_architect_invalid_json_bounces_back_with_retry(tmp_path):
+    architect = _make_mock_agent("Software Architect")
+    architect.llm.chat.side_effect = [
+        '{"invalid": true}',
+        json.dumps(
+            {
+                "system_diagram_json": {"nodes": ["api"], "edges": []},
+                "database_schema": [{"name": "users", "fields": ["id"], "relationships": []}],
+                "api_endpoints": [{"method": "GET", "path": "/health", "purpose": "health"}],
+                "design_decisions": [],
+                "risks": [],
+                "handoff_notes": "retry fixed",
+            }
+        ),
+    ]
+    crew = DevCrew(
+        agents=[architect],
+        output_dir=tmp_path,
+        save_individual=False,
+        save_report=False,
+        enable_architect_quorum=False,
+    )
+    outputs = crew.kickoff("Design architecture", project_name="arch_project")
+    assert "Software Architect" in outputs
+    assert architect.llm.chat.call_count == 2
+
+
+def test_review_graph_routes_database_issue_to_database_engineer(tmp_path):
+    roles = [
+        "Software Architect",
+        "Database Engineer",
+        "Frontend Developer",
+        "QA Engineer",
+    ]
+    agents = [_make_mock_agent(r) for r in roles]
+    for agent in agents:
+        if agent.role == "QA Engineer":
+            agent.llm.chat.return_value = "## Must-Address Checklist\n- [Critical] Database schema breaks foreign key integrity.\n"
+    crew = DevCrew(
+        agents=agents,
+        output_dir=tmp_path,
+        max_fix_iterations=1,
+        save_individual=False,
+        save_report=False,
+        enable_architect_quorum=False,
+    )
+    crew.kickoff("Build app", project_name="db_route")
+    db_agent = next(a for a in agents if a.role == "Database Engineer")
+    fe_agent = next(a for a in agents if a.role == "Frontend Developer")
+    assert db_agent.llm.chat.call_count == 2
+    assert fe_agent.llm.chat.call_count == 1

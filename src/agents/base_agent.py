@@ -9,9 +9,12 @@ can build on each other's work.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from pydantic import BaseModel
+
     from src.utils.ollama_client import OllamaClient
 
 
@@ -31,6 +34,7 @@ class Agent:
     llm_options: dict[str, object] = field(default_factory=dict)
     llm_fallback_models: list[str] = field(default_factory=list)
     llm_retries: int | None = None
+    output_schema: type["BaseModel"] | None = None
 
     def _system_prompt(self) -> str:
         parts = [
@@ -86,11 +90,15 @@ class Agent:
             )
         user_message_parts.append("Please provide your best professional response now.")
         user_message = "\n\n---\n\n".join(user_message_parts)
+        format_schema: dict[str, Any] | None = None
+        if self.output_schema is not None:
+            format_schema = self.output_schema.model_json_schema()
         return self.llm.chat(
             self._system_prompt(),
             user_message,
             model=self.llm_model,
             options=self.llm_options,
+            format_schema=format_schema,
             fallback_models=self.llm_fallback_models,
             retries_override=self.llm_retries,
         )
