@@ -115,11 +115,17 @@ def run(
             "[bold]END[/bold] on its own line and press Enter.\n"
         )
         lines: list[str] = []
-        while True:
-            line = input()
-            if line.strip().upper() == "END":
-                break
-            lines.append(line)
+        try:
+            while True:
+                line = input()
+                if line.strip().upper() == "END":
+                    break
+                lines.append(line)
+        except EOFError:
+            pass  # stdin closed (e.g., piped input) – treat as end of requirements
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interrupted.[/yellow]")
+            raise typer.Exit(code=1)
         requirements = "\n".join(lines)
 
     if not requirements.strip():
@@ -200,13 +206,18 @@ def models() -> None:
         cfg = load_config()
         client = ollama.Client(host=cfg["llm"]["base_url"])
         model_list = client.list()
-        if not model_list.get("models"):
+        models_data = _extract_ollama_models(model_list)
+        if not models_data:
             console.print("[yellow]No models found.  Pull one with:[/yellow]  ollama pull mistral")
             return
         console.print("\n[bold cyan]Available Ollama models:[/bold cyan]")
-        for m in model_list["models"]:
-            name = m.get("name") or m.get("model", "unknown")
-            size_gb = m.get("size", 0) / 1_073_741_824
+        for m in models_data:
+            if hasattr(m, "model"):
+                name = m.model or "unknown"
+                size_gb = (m.size or 0) / 1_073_741_824
+            else:
+                name = m.get("name") or m.get("model", "unknown")
+                size_gb = m.get("size", 0) / 1_073_741_824
             console.print(f"  • [green]{name}[/green]  ({size_gb:.1f} GB)")
         console.print()
     except ImportError:
@@ -230,6 +241,19 @@ def show_config(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _extract_ollama_models(model_list: object) -> list:
+    """Extract the models list from an Ollama list response.
+
+    Handles both the current SDK (``ListResponse`` with a ``.models``
+    attribute) and the old dict-style response for backward compatibility.
+    """
+    if hasattr(model_list, "models"):
+        return model_list.models or []  # type: ignore[attr-defined]
+    if isinstance(model_list, dict):
+        return model_list.get("models") or []
+    return []
 
 
 def _hint_common_errors(exc: Exception) -> None:

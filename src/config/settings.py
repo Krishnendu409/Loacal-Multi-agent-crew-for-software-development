@@ -168,6 +168,23 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
     """Load configuration from *path* (defaults to ``config.yaml`` in project root).
 
     Unknown keys are silently ignored; missing keys fall back to *_DEFAULTS*.
+
+    Environment variable overrides (all optional):
+
+    ==========================================  ============================================
+    Variable                                    Setting
+    ==========================================  ============================================
+    ``OLLAMA_BASE_URL``                         ``llm.base_url``
+    ``OLLAMA_MODEL``                            ``llm.model``
+    ``OLLAMA_RETRIES``                          ``llm.retries`` (integer)
+    ``OLLAMA_TIMEOUT``                          ``llm.timeout_seconds`` (integer)
+    ``OLLAMA_TEMPERATURE``                      ``llm.options.temperature`` (float)
+    ``OLLAMA_NUM_PREDICT``                      ``llm.options.num_predict`` (integer)
+    ``CREW_MAX_FIX_ITERATIONS``                 ``crew.max_fix_iterations`` (integer)
+    ``CREW_STOP_ON_NO_MAJOR_ISSUES``            ``crew.stop_on_no_major_issues`` (bool)
+    ``CREW_REQUIRE_STRATEGY_APPROVAL``          ``crew.require_strategy_approval`` (bool)
+    ``OUTPUT_DIR``                              ``output.directory``
+    ==========================================  ============================================
     """
     config_path = Path(path) if path else _DEFAULT_CONFIG_PATH
     file_config: dict[str, Any] = {}
@@ -177,4 +194,66 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
             if isinstance(loaded, dict):
                 file_config = loaded
 
-    return _deep_merge(_DEFAULTS, file_config)
+    merged = _deep_merge(_DEFAULTS, file_config)
+    _apply_env_overrides(merged)
+    return merged
+
+
+def _apply_env_overrides(cfg: dict[str, Any]) -> None:
+    """Mutate *cfg* in-place to apply environment variable overrides."""
+
+    def _str(var: str) -> str | None:
+        return os.environ.get(var) or None
+
+    def _int(var: str) -> int | None:
+        val = os.environ.get(var)
+        if val is None:
+            return None
+        try:
+            return int(val)
+        except ValueError:
+            return None
+
+    def _float(var: str) -> float | None:
+        val = os.environ.get(var)
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except ValueError:
+            return None
+
+    def _bool(var: str) -> bool | None:
+        val = os.environ.get(var)
+        if val is None:
+            return None
+        stripped = val.strip().lower()
+        if not stripped:
+            return None
+        return stripped not in ("0", "false", "no", "off")
+
+    # llm overrides
+    if (v := _str("OLLAMA_BASE_URL")) is not None:
+        cfg["llm"]["base_url"] = v
+    if (v := _str("OLLAMA_MODEL")) is not None:
+        cfg["llm"]["model"] = v
+    if (v := _int("OLLAMA_RETRIES")) is not None:
+        cfg["llm"]["retries"] = v
+    if (v := _int("OLLAMA_TIMEOUT")) is not None:
+        cfg["llm"]["timeout_seconds"] = v
+    if (v := _float("OLLAMA_TEMPERATURE")) is not None:
+        cfg["llm"].setdefault("options", {})["temperature"] = v
+    if (v := _int("OLLAMA_NUM_PREDICT")) is not None:
+        cfg["llm"].setdefault("options", {})["num_predict"] = v
+
+    # crew overrides
+    if (v := _int("CREW_MAX_FIX_ITERATIONS")) is not None:
+        cfg["crew"]["max_fix_iterations"] = v
+    if (v := _bool("CREW_STOP_ON_NO_MAJOR_ISSUES")) is not None:
+        cfg["crew"]["stop_on_no_major_issues"] = v
+    if (v := _bool("CREW_REQUIRE_STRATEGY_APPROVAL")) is not None:
+        cfg["crew"]["require_strategy_approval"] = v
+
+    # output overrides
+    if (v := _str("OUTPUT_DIR")) is not None:
+        cfg["output"]["directory"] = v

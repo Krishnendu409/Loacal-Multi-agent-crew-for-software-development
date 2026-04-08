@@ -8,10 +8,15 @@ to the next one, mimicking real team communication.
 from __future__ import annotations
 
 import datetime
+import logging
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 from typing import Callable
+
+logger = logging.getLogger(__name__)
 
 from src.agents.base_agent import Agent
 from src.agents.definitions import AGENT_ORDER
@@ -191,6 +196,14 @@ class DevCrew:
 
         if performance_agent or qa_agent or reviewer_agent or security_agent:
             for iteration in range(self.max_fix_iterations + 1):
+                # On the last allowed iteration, skip reviews that would produce
+                # findings with no subsequent fix pass – they add noise without
+                # any actionable outcome.
+                is_last_iteration = iteration >= self.max_fix_iterations
+                can_apply_fix = implementation_agents and not is_last_iteration
+                if is_last_iteration and not implementation_agents:
+                    break
+
                 round_findings: list[str] = []
                 for review_agent in [performance_agent, qa_agent, security_agent, reviewer_agent]:
                     if review_agent is None:
@@ -214,7 +227,7 @@ class DevCrew:
                 if self.stop_on_no_major_issues and not self._has_blocking_issues(must_address):
                     break
 
-                if not implementation_agents or iteration >= self.max_fix_iterations:
+                if not can_apply_fix:
                     break
 
                 fix_task = self._render_fix_task(
@@ -292,10 +305,24 @@ class DevCrew:
 
     @staticmethod
     def _summarize_response(response: str, max_chars: int = 900) -> str:
+        """Summarize *response* without destructive mid-string truncation.
+
+        Strategy: keep the first ``head`` characters (which usually contain the
+        Summary and Key-Decisions sections) and, when the text is long, append
+        the last ``tail`` characters so important handoff notes are preserved.
+        A clear ellipsis marker separates the two parts so readers know content
+        was omitted.
+        """
         cleaned = " ".join(response.split())
         if len(cleaned) <= max_chars:
             return cleaned
-        return cleaned[: max_chars - 1] + "…"
+        # Reserve space for the separator token " […] "
+        separator = " […] "
+        head = max_chars * 2 // 3
+        tail = max_chars - head - len(separator)
+        if tail <= 0:
+            return cleaned[:head] + "…"
+        return cleaned[:head] + separator + cleaned[-tail:]
 
     @staticmethod
     def _extract_must_address(response: str) -> list[str]:
@@ -397,7 +424,16 @@ class DevCrew:
         run_dir = self._get_run_dir(project_name)
         filename = f"{_safe_filename(role)}.md"
         path = run_dir / filename
-        path.write_text(content, encoding="utf-8")
+        # If the file already exists (fix-pass overwrite), rename the original
+        # to a versioned backup before writing the new version.
+        if path.exists():
+            backup = _next_versioned_path(path)
+            try:
+                path.rename(backup)
+                logger.debug("Preserved original as %s", backup)
+            except OSError as exc:
+                logger.warning("Could not back up %s: %s", path, exc)
+        _atomic_write(path, content)
         display.print_saved(str(path))
 
     def _save_final_report(
@@ -423,10 +459,47 @@ class DevCrew:
         for role, content in outputs.items():
             lines += [f"## {role}", "", content, "", "---", ""]
 
-        path.write_text("\n".join(lines), encoding="utf-8")
+        _atomic_write(path, "\n".join(lines))
         display.print_saved(str(path))
 
 
 def _safe_filename(name: str) -> str:
     """Convert a string into a filesystem-safe filename fragment."""
     return "".join(c if c.isalnum() or c in "-_" else "_" for c in name).lower()
+
+
+def _atomic_write(path: Path, content: str, encoding: str = "utf-8") -> None:
+    """Write *content* to *path* atomically (temp-file + rename).
+
+    Ensures directories exist.  Raises ``OSError`` on failure rather than
+    silently leaving a partial file.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_fd, tmp_name = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(tmp_fd, "w", encoding=encoding) as fh:
+            fh.write(content)
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
+_MAX_BACKUP_VERSIONS = 999
+
+
+def _next_versioned_path(path: Path) -> Path:
+    """Return the next available versioned backup path for *path*.
+
+    Example: ``foo.md`` → ``foo.md.bak1``, ``foo.md.bak2``, …
+    """
+    for n in range(1, _MAX_BACKUP_VERSIONS + 1):
+        candidate = path.with_suffix(f"{path.suffix}.bak{n}")
+        if not candidate.exists():
+            return candidate
+    return path.with_suffix(f"{path.suffix}.bak_overflow")

@@ -240,3 +240,91 @@ def test_build_agents_applies_external_ecc_pack(mock_llm):
     assert len(agents) == 1
     agent = agents[0]
     assert "python-testing" in agent.skills
+
+
+# ---------------------------------------------------------------------------
+# P0 #3: no silent TypeError swallowing in Agent.execute
+# ---------------------------------------------------------------------------
+
+
+def test_agent_execute_propagates_runtime_error():
+    """If the LLM raises an error other than TypeError it should propagate."""
+    llm = MagicMock()
+    llm.chat.side_effect = RuntimeError("connection refused")
+    agent = Agent(role="Product Manager", goal="Write specs", backstory="PM", llm=llm)
+    with pytest.raises(RuntimeError, match="connection refused"):
+        agent.execute("Build a todo app")
+
+
+def test_agent_execute_passes_model_and_options_to_llm():
+    """Agent.execute must forward llm_model, llm_options, and llm_fallback_models."""
+    llm = MagicMock()
+    llm.chat.return_value = "ok"
+    agent = Agent(
+        role="Backend Developer",
+        goal="Write code",
+        backstory="Senior dev",
+        llm=llm,
+        llm_model="deepseek-coder:6.7b",
+        llm_options={"temperature": 0.2},
+        llm_fallback_models=["qwen2.5:7b-instruct"],
+    )
+    agent.execute("Implement feature")
+    _, kwargs = llm.chat.call_args
+    assert kwargs.get("model") == "deepseek-coder:6.7b"
+    assert kwargs.get("options") == {"temperature": 0.2}
+    assert kwargs.get("fallback_models") == ["qwen2.5:7b-instruct"]
+
+
+def test_agent_execute_does_not_swallow_type_error():
+    """A TypeError from the LLM (e.g., unexpected keyword argument) must propagate."""
+    llm = MagicMock()
+    llm.chat.side_effect = TypeError("unexpected keyword argument 'model'")
+    agent = Agent(role="Product Manager", goal="Specs", backstory="PM", llm=llm)
+    with pytest.raises(TypeError):
+        agent.execute("Build feature")
+
+
+# ---------------------------------------------------------------------------
+# P0 #1: OllamaClient reuses the same underlying client instance
+# ---------------------------------------------------------------------------
+
+
+def test_ollama_client_reuses_instance():
+    """The same ollama.Client object must be returned on every call."""
+    from unittest.mock import MagicMock, patch
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        c1 = oc._get_client()
+        c2 = oc._get_client()
+
+    assert c1 is c2
+    # Client constructor called exactly once despite two _get_client() calls
+    mock_ollama_module.Client.assert_called_once()
+
+
+def test_ollama_client_chat_reuses_instance_across_calls():
+    """Calling chat() multiple times must not create a new ollama.Client each time."""
+    from unittest.mock import MagicMock, patch
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+    # Simulate a successful chat response
+    mock_client_instance.chat.return_value = {"message": {"content": "hello"}}
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        oc.chat("system", "user message 1")
+        oc.chat("system", "user message 2")
+
+    # The underlying ollama.Client constructor must have been called only once
+    mock_ollama_module.Client.assert_called_once()
+

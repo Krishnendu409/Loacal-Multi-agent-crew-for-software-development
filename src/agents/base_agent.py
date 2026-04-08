@@ -87,14 +87,10 @@ class Agent:
             "Please provide your best professional response now."
         )
         user_message = "\n\n---\n\n".join(user_message_parts)
-        try:
-            return self.llm.chat(
-                self._system_prompt(),
-                user_message,
-                model=self.llm_model,
-                options=self.llm_options,
-                fallback_models=self.llm_fallback_models,
-            )
-        except TypeError:
-            # Backward-compatible path for mocked or legacy chat clients.
-            return self.llm.chat(self._system_prompt(), user_message)
+        return self.llm.chat(
+            self._system_prompt(),
+            user_message,
+            model=self.llm_model,
+            options=self.llm_options,
+            fallback_models=self.llm_fallback_models,
+        )

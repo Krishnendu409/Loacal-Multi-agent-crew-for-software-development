@@ -6,6 +6,7 @@ easily swap backends in the future.
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any
 
@@ -39,13 +40,20 @@ class OllamaClient:
         self.options: dict[str, Any] = options or {}
         self.retries = max(retries, 0)
         self.timeout_seconds = timeout_seconds
+        self._client: Any = None
+        self._client_lock = threading.Lock()
 
-    def _build_client(self):
-        ollama = _get_ollama()
-        kwargs: dict[str, Any] = {"host": self.base_url}
-        if self.timeout_seconds:
-            kwargs["timeout"] = self.timeout_seconds
-        return ollama.Client(**kwargs)
+    def _get_client(self) -> Any:
+        """Return the shared Ollama client, creating it on first use (thread-safe)."""
+        if self._client is None:
+            with self._client_lock:
+                if self._client is None:
+                    ollama = _get_ollama()
+                    kwargs: dict[str, Any] = {"host": self.base_url}
+                    if self.timeout_seconds:
+                        kwargs["timeout"] = self.timeout_seconds
+                    self._client = ollama.Client(**kwargs)
+        return self._client
 
     def chat(
         self,
@@ -57,7 +65,7 @@ class OllamaClient:
         fallback_models: list[str] | None = None,
     ) -> str:
         """Send a chat message and return the assistant's reply as a string."""
-        client = self._build_client()
+        client = self._get_client()
 
         messages = []
         if system_prompt:
