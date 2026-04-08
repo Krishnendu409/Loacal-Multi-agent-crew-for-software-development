@@ -7,6 +7,7 @@ easily swap backends in the future.
 from __future__ import annotations
 
 import time
+import threading
 from typing import Any
 
 
@@ -43,8 +44,9 @@ class OllamaClient:
         self._cache: dict[tuple[str, str, str], str] = {}
         self._cache_order: list[tuple[str, str, str]] = []
         self._cache_limit = 128
+        self._cache_lock = threading.Lock()
 
-    def _build_client(self):
+    def _build_client(self) -> Any:
         if self._client is not None:
             return self._client
         ollama = _get_ollama()
@@ -87,8 +89,9 @@ class OllamaClient:
                 system_prompt,
                 user_message,
             )
-            if cache_key in self._cache:
-                return self._cache[cache_key]
+            with self._cache_lock:
+                if cache_key in self._cache:
+                    return self._cache[cache_key]
             for attempt in range(1, attempts + 1):
                 try:
                     response = client.chat(
@@ -104,11 +107,12 @@ class OllamaClient:
                             "Ollama response missing expected message.content string."
                         )
                     content = message["content"]
-                    self._cache[cache_key] = content
-                    self._cache_order.append(cache_key)
-                    if len(self._cache_order) > self._cache_limit:
-                        oldest = self._cache_order.pop(0)
-                        self._cache.pop(oldest, None)
+                    with self._cache_lock:
+                        self._cache[cache_key] = content
+                        self._cache_order.append(cache_key)
+                        if len(self._cache_order) > self._cache_limit:
+                            oldest = self._cache_order.pop(0)
+                            self._cache.pop(oldest, None)
                     return content
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")

@@ -43,6 +43,7 @@ _ROLE_TO_TASK_KEY: dict[str, str] = {
 
 
 class DevCrew:
+    # Major issues are weighted higher to prioritize blocking defects first.
     MAJOR_ISSUE_WEIGHT = 10
     ISSUE_WEIGHT = 1
 
@@ -272,7 +273,8 @@ class DevCrew:
             outputs[agent.role] = result.raw_text
             self._save_agent_artifacts(project_name, agent.role, result, iteration=1)
 
-        final_outputs = best_snapshot["outputs"] if best_snapshot else outputs.copy()
+        snapshot_outputs = best_snapshot.get("outputs") if isinstance(best_snapshot, dict) else None
+        final_outputs = snapshot_outputs if isinstance(snapshot_outputs, dict) else outputs.copy()
         for role, value in outputs.items():
             final_outputs.setdefault(role, value)
         if self.save_report:
@@ -287,7 +289,7 @@ class DevCrew:
                 command=["python", "-m", "pytest", "tests", "-q"],
                 returncode=2,
                 stdout="",
-                stderr="Tests directory missing; checks skipped.",
+                stderr=f"No tests directory found at {tests_dir}. Skipping test execution.",
                 timed_out=False,
             )
         return runner.run(["python", "-m", "pytest", "tests", "-q"], cwd=project_dir)
@@ -415,7 +417,7 @@ class DevCrew:
         run_dir = self._get_run_dir(project_name)
         path = run_dir / "FINAL_REPORT.md"
         lines = [
-            f"# {project_name} – Autonomous Crew Report",
+            f"# {project_name} - Autonomous Crew Report",
             "",
             f"*Generated: {datetime.datetime.now().isoformat(timespec='seconds')}*",
             "",

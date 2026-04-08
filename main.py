@@ -115,11 +115,15 @@ def run(
             "[bold]END[/bold] on its own line and press Enter.\n"
         )
         lines: list[str] = []
-        while True:
-            line = input()
-            if line.strip().upper() == "END":
-                break
-            lines.append(line)
+        try:
+            while True:
+                line = input()
+                if line.strip().upper() == "END":
+                    break
+                lines.append(line)
+        except (EOFError, KeyboardInterrupt):
+            display.print_error("Input cancelled. Exiting.")
+            raise typer.Exit(code=1)
         requirements = "\n".join(lines)
 
     if not requirements.strip():

@@ -121,5 +121,6 @@ class Agent:
         )
         result = parse_structured_result(raw)
         if not result.summary:
+            # Fallback for models that omit summary while still returning valid structure.
             result.summary = json.dumps(result.to_dict(), ensure_ascii=False)
         return result
