@@ -9,10 +9,7 @@ can build on each other's work.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import json
 from typing import TYPE_CHECKING
-
-from src.protocol.messages import AgentMessage, AgentResult, parse_structured_result, render_message_block
 
 if TYPE_CHECKING:
     from src.utils.ollama_client import OllamaClient

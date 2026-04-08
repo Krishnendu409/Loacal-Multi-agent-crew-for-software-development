@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import threading
 import time
-import threading
 from typing import Any
 
 
@@ -44,6 +43,8 @@ class OllamaClient:
         self.timeout_seconds = timeout_seconds
         self._client: Any = None
         self._client_lock = threading.Lock()
+        self._cache: dict[tuple[str, str, str], str] = {}
+        self._cache_lock = threading.Lock()
 
     def _get_client(self) -> Any:
         """Return the shared Ollama client, creating it on first use (thread-safe)."""
@@ -105,6 +106,8 @@ class OllamaClient:
                     message = response.get("message", {}) if isinstance(response, dict) else {}
                     content = message.get("content") if isinstance(message, dict) else None
                     if isinstance(content, str):
+                        with self._cache_lock:
+                            self._cache[cache_key] = content
                         return content
                     raise RuntimeError("Ollama response missing message.content")
                 except Exception as exc:  # noqa: BLE001
