@@ -6,11 +6,35 @@ from src.skills.ecc_pack import ecc_conflicts_map, ecc_priority_map, resolve_ecc
 
 
 ROLE_DEFAULT_SKILLS: dict[str, list[str]] = {
+    "ceo_planner": [
+        "strategic planning",
+        "problem framing",
+        "prioritization under constraints",
+        "decision-gate facilitation",
+    ],
+    "market_researcher": [
+        "market gap analysis",
+        "competitive benchmarking",
+        "user segment analysis",
+        "differentiation strategy",
+    ],
+    "customer_support_feedback_analyst": [
+        "voice-of-customer synthesis",
+        "support ticket pattern analysis",
+        "feedback prioritization",
+        "serviceability design",
+    ],
     "product_manager": [
         "requirements decomposition",
         "scope management",
         "acceptance criteria design",
         "risk identification",
+    ],
+    "compliance_privacy_specialist": [
+        "privacy-by-design",
+        "compliance control mapping",
+        "data minimization policy design",
+        "audit-readiness planning",
     ],
     "architect": [
         "architecture trade-off analysis",
@@ -18,11 +42,47 @@ ROLE_DEFAULT_SKILLS: dict[str, list[str]] = {
         "scalability and reliability planning",
         "threat modeling",
     ],
+    "ui_ux_designer": [
+        "journey mapping",
+        "interaction design",
+        "accessibility-centered design",
+        "design-system thinking",
+    ],
+    "database_engineer": [
+        "schema design and normalization",
+        "query and index optimization",
+        "migration safety planning",
+        "data integrity enforcement",
+    ],
+    "api_integration_engineer": [
+        "api contract hardening",
+        "idempotency and retry design",
+        "integration failure-mode planning",
+        "backward compatibility strategy",
+    ],
     "backend_developer": [
         "clean code and refactoring",
         "defensive programming",
         "secure coding",
         "testability-first implementation",
+    ],
+    "frontend_developer": [
+        "ui architecture",
+        "accessibility-first design",
+        "responsive design systems",
+        "frontend performance optimization",
+    ],
+    "data_analytics_engineer": [
+        "event taxonomy design",
+        "kpi modeling",
+        "analytics data quality controls",
+        "reporting pipeline planning",
+    ],
+    "performance_engineer": [
+        "performance bottleneck analysis",
+        "latency and throughput budgeting",
+        "load-testing strategy",
+        "resource efficiency tuning",
     ],
     "qa_engineer": [
         "test strategy design",
@@ -30,11 +90,35 @@ ROLE_DEFAULT_SKILLS: dict[str, list[str]] = {
         "regression prevention",
         "quality risk assessment",
     ],
+    "security_engineer": [
+        "threat modeling",
+        "vulnerability analysis",
+        "secure architecture review",
+        "remediation prioritization",
+    ],
     "code_reviewer": [
         "code quality review",
         "security review",
         "performance review",
         "actionable feedback writing",
+    ],
+    "technical_writer": [
+        "technical documentation architecture",
+        "runbook authoring",
+        "troubleshooting narrative design",
+        "release note clarity",
+    ],
+    "sre_reliability_engineer": [
+        "slo and error-budget design",
+        "observability engineering",
+        "incident response design",
+        "resilience validation",
+    ],
+    "release_manager": [
+        "release orchestration",
+        "go-no-go risk gating",
+        "rollback readiness planning",
+        "cross-functional coordination",
     ],
     "devops_engineer": [
         "ci/cd design",

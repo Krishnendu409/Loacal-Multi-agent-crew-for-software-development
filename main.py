@@ -37,6 +37,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 from rich.pretty import pprint
+from rich.prompt import Confirm
 
 # ---------------------------------------------------------------------------
 # Bootstrap: add project root to sys.path so `src.*` imports work regardless
@@ -74,7 +75,7 @@ def run(
         None,
         "--requirements",
         "-r",
-        help="Raw project requirements.  If omitted you will be prompted.",
+        help="Raw problem statement / requirements. If omitted you will be prompted.",
     ),
     model: Optional[str] = typer.Option(
         None, "--model", "-m", help="Ollama model to use (overrides config.yaml)."
@@ -82,14 +83,25 @@ def run(
     config: Optional[Path] = typer.Option(
         None, "--config", "-c", help="Path to a custom config.yaml file."
     ),
+    auto_approve_strategy: bool = typer.Option(
+        False,
+        "--auto-approve-strategy",
+        help="Skip strategy confirmation prompt and proceed automatically.",
+    ),
 ) -> None:
     """Start the multi-agent development crew on a new project."""
     display.print_banner()
 
     cfg = load_config(config)
+    allowed_models = {
+        m.strip()
+        for m in cfg["llm"].get("allowed_models", [])
+        if isinstance(m, str) and m.strip()
+    }
 
     # --- Resolve model -------------------------------------------------
     effective_model = model or cfg["llm"]["model"]
+    _validate_allowed_model(effective_model, allowed_models, "Selected model")
 
     # --- Gather project name ------------------------------------------
     if not project:
@@ -98,7 +110,7 @@ def run(
     # --- Gather requirements ------------------------------------------
     if not requirements:
         console.print(
-            "\n[bold cyan]📝 Enter your project requirements.[/bold cyan]\n"
+            "\n[bold cyan]📝 Enter your problem statement (or requirements).[/bold cyan]\n"
             "  You can type multiple lines.  When finished, type a single "
             "[bold]END[/bold] on its own line and press Enter.\n"
         )
@@ -128,6 +140,7 @@ def run(
     # --- Build agents -------------------------------------------------
     llm_for_agents = dict(cfg["llm"])
     if model:
+        _validate_allowed_model(model, allowed_models, "CLI model override")
         llm_for_agents["routing"] = {k: model for k in cfg["agents"].keys()}
         llm_for_agents["fallbacks"] = {}
     agents = build_agents(
@@ -155,7 +168,23 @@ def run(
     )
 
     try:
-        crew.kickoff(requirements=requirements, project_name=project)
+        require_gate = bool(cfg.get("crew", {}).get("require_strategy_approval", True))
+
+        def _confirm_strategy(_: dict[str, str]) -> bool:
+            if auto_approve_strategy:
+                return True
+            console.print(
+                "\n[bold yellow]Strategy phase complete.[/bold yellow] "
+                "Proceed to implementation?"
+            )
+            return Confirm.ask("Continue", default=False)
+
+        crew.kickoff_with_strategy_gate(
+            requirements=requirements,
+            project_name=project,
+            require_strategy_approval=require_gate,
+            strategy_approval_callback=_confirm_strategy if require_gate else None,
+        )
     except Exception as exc:  # noqa: BLE001
         display.print_error(str(exc))
         _hint_common_errors(exc)
@@ -213,8 +242,17 @@ def _hint_common_errors(exc: Exception) -> None:
     elif "model" in msg and ("not found" in msg or "pull" in msg):
         console.print(
             "\n[yellow]💡 Tip:[/yellow] The model was not found locally.  "
-            "Pull it with:  [bold]ollama pull mistral[/bold]"
+            "Pull it with:  [bold]ollama pull qwen2.5:7b-instruct[/bold]"
         )
+
+
+def _validate_allowed_model(model_name: str, allowed_models: set[str], context: str) -> None:
+    if allowed_models and model_name not in allowed_models:
+        display.print_error(
+            f"{context} is not allowed by config.llm.allowed_models. "
+            f"Allowed: {sorted(allowed_models)}"
+        )
+        raise typer.Exit(code=1)
 
 
 # ---------------------------------------------------------------------------

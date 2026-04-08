@@ -15,20 +15,48 @@ console = Console()
 
 # Role → colour mapping so each agent has a distinct look
 _ROLE_COLOURS: dict[str, str] = {
+    "CEO Planner": "bright_cyan",
+    "Market Researcher": "bright_blue",
+    "Customer Support/Feedback Analyst": "bright_yellow",
     "Product Manager": "cyan",
+    "Compliance & Privacy Specialist": "bright_red",
     "Software Architect": "magenta",
+    "UI/UX Designer": "bright_white",
+    "Database Engineer": "bright_green",
+    "API Integration Engineer": "bright_magenta",
+    "Frontend Developer": "bright_magenta",
     "Backend Developer": "green",
+    "Data/Analytics Engineer": "bright_cyan",
+    "Performance Engineer": "yellow",
+    "Security Engineer": "bright_red",
     "QA Engineer": "yellow",
     "Code Reviewer": "blue",
+    "Technical Writer": "white",
+    "SRE / Reliability Engineer": "bright_black",
+    "Release Manager": "bright_blue",
     "DevOps Engineer": "red",
 }
 
 _ROLE_EMOJIS: dict[str, str] = {
+    "CEO Planner": "🧭",
+    "Market Researcher": "📈",
+    "Customer Support/Feedback Analyst": "🎧",
     "Product Manager": "📋",
+    "Compliance & Privacy Specialist": "⚖️",
     "Software Architect": "🏗️",
+    "UI/UX Designer": "🧩",
+    "Database Engineer": "🗄️",
+    "API Integration Engineer": "🔌",
+    "Frontend Developer": "🎨",
     "Backend Developer": "💻",
+    "Data/Analytics Engineer": "📊",
+    "Performance Engineer": "⚡",
+    "Security Engineer": "🛡️",
     "QA Engineer": "🧪",
     "Code Reviewer": "🔍",
+    "Technical Writer": "📝",
+    "SRE / Reliability Engineer": "🛰️",
+    "Release Manager": "📦",
     "DevOps Engineer": "🚀",
 }
 

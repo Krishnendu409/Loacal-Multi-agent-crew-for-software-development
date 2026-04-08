@@ -39,13 +39,27 @@ def minimal_crew(tmp_path):
 
 @pytest.fixture()
 def full_crew(tmp_path):
-    """A crew with all 5 main agents."""
+    """A crew with all strategy, product, engineering, review, and release agents."""
     roles = [
+        "CEO Planner",
+        "Market Researcher",
+        "Customer Support/Feedback Analyst",
         "Product Manager",
+        "Compliance & Privacy Specialist",
         "Software Architect",
+        "UI/UX Designer",
+        "Database Engineer",
+        "API Integration Engineer",
+        "Frontend Developer",
         "Backend Developer",
+        "Data/Analytics Engineer",
+        "Performance Engineer",
+        "Security Engineer",
         "QA Engineer",
         "Code Reviewer",
+        "Technical Writer",
+        "SRE / Reliability Engineer",
+        "Release Manager",
     ]
     agents = [_make_mock_agent(r) for r in roles]
     return DevCrew(
@@ -64,11 +78,25 @@ def full_crew(tmp_path):
 def test_kickoff_returns_dict_with_all_roles(full_crew):
     outputs = full_crew.kickoff("Build a chat app", project_name="test_project")
     assert set(outputs.keys()) == {
+        "CEO Planner",
+        "Market Researcher",
+        "Customer Support/Feedback Analyst",
         "Product Manager",
+        "Compliance & Privacy Specialist",
         "Software Architect",
+        "UI/UX Designer",
+        "Database Engineer",
+        "API Integration Engineer",
+        "Frontend Developer",
         "Backend Developer",
+        "Data/Analytics Engineer",
+        "Performance Engineer",
+        "Security Engineer",
         "QA Engineer",
         "Code Reviewer",
+        "Technical Writer",
+        "SRE / Reliability Engineer",
+        "Release Manager",
     }
 
 
@@ -103,8 +131,8 @@ def test_kickoff_later_agents_receive_context(full_crew):
 def test_kickoff_saves_individual_files(full_crew, tmp_path):
     full_crew.kickoff("Build a chat app", project_name="test_project")
     md_files = list(tmp_path.rglob("*.md"))
-    # 5 individual files + 1 final report
-    assert len(md_files) >= 6
+    # 18 individual files + 1 final report
+    assert len(md_files) >= 19
 
 
 def test_kickoff_saves_final_report(full_crew, tmp_path):
@@ -153,9 +181,14 @@ def test_safe_filename_keeps_alphanumeric_and_dash_underscore():
 
 def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
     roles = [
+        "CEO Planner",
+        "Market Researcher",
         "Product Manager",
         "Software Architect",
+        "UI/UX Designer",
+        "Frontend Developer",
         "Backend Developer",
+        "Security Engineer",
         "QA Engineer",
         "Code Reviewer",
     ]
@@ -171,6 +204,11 @@ def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
                 "## Must-Address Checklist\n"
                 "- [Minor] Improve naming consistency.\n"
             )
+        elif agent.role == "Security Engineer":
+            agent.llm.chat.return_value = (
+                "## Must-Address Checklist\n"
+                "- [Major] Ensure output encoding for user-provided content.\n"
+            )
     crew = DevCrew(
         agents=agents,
         output_dir=tmp_path,
@@ -180,6 +218,44 @@ def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
     crew.kickoff("Build API", project_name="api_project")
 
     backend = next(a for a in agents if a.role == "Backend Developer")
+    frontend = next(a for a in agents if a.role == "Frontend Developer")
+    security = next(a for a in agents if a.role == "Security Engineer")
+    assert frontend.llm.chat.call_count == 2
     assert backend.llm.chat.call_count == 2
+    assert security.llm.chat.call_count >= 1
+    frontend_second_call_user_message = frontend.llm.chat.call_args_list[1][0][1]
+    assert "Must-Address Checklist" in frontend_second_call_user_message
     second_call_user_message = backend.llm.chat.call_args_list[1][0][1]
     assert "Must-Address Checklist" in second_call_user_message
+
+
+def test_kickoff_with_strategy_gate_stops_when_not_approved(tmp_path):
+    roles = [
+        "CEO Planner",
+        "Market Researcher",
+        "Customer Support/Feedback Analyst",
+        "Product Manager",
+        "Compliance & Privacy Specialist",
+        "Software Architect",
+        "Backend Developer",
+    ]
+    agents = [_make_mock_agent(r) for r in roles]
+    crew = DevCrew(agents=agents, output_dir=tmp_path)
+
+    approval_callback = MagicMock(return_value=False)
+    outputs = crew.kickoff_with_strategy_gate(
+        "Build API",
+        project_name="api_project",
+        require_strategy_approval=True,
+        strategy_approval_callback=approval_callback,
+    )
+    approval_callback.assert_called_once()
+    assert set(outputs.keys()) == {
+        "CEO Planner",
+        "Market Researcher",
+        "Customer Support/Feedback Analyst",
+        "Product Manager",
+        "Compliance & Privacy Specialist",
+    }
+    architect = next(a for a in agents if a.role == "Software Architect")
+    assert architect.llm.chat.call_count == 0

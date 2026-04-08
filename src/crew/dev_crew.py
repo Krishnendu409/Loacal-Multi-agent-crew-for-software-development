@@ -11,6 +11,7 @@ import datetime
 import re
 from pathlib import Path
 from typing import Any
+from typing import Callable
 
 from src.agents.base_agent import Agent
 from src.agents.definitions import AGENT_ORDER
@@ -19,11 +20,25 @@ from src.utils import display
 
 # Map agent role name → task key in TASKS
 _ROLE_TO_TASK_KEY: dict[str, str] = {
+    "CEO Planner": "ceo_planner",
+    "Market Researcher": "market_researcher",
+    "Customer Support/Feedback Analyst": "customer_support_feedback_analyst",
     "Product Manager": "product_manager",
+    "Compliance & Privacy Specialist": "compliance_privacy_specialist",
     "Software Architect": "architect",
+    "UI/UX Designer": "ui_ux_designer",
+    "Database Engineer": "database_engineer",
+    "API Integration Engineer": "api_integration_engineer",
+    "Frontend Developer": "frontend_developer",
     "Backend Developer": "backend_developer",
+    "Data/Analytics Engineer": "data_analytics_engineer",
+    "Performance Engineer": "performance_engineer",
+    "Security Engineer": "security_engineer",
     "QA Engineer": "qa_engineer",
     "Code Reviewer": "code_reviewer",
+    "Technical Writer": "technical_writer",
+    "SRE / Reliability Engineer": "sre_reliability_engineer",
+    "Release Manager": "release_manager",
     "DevOps Engineer": "devops_engineer",
 }
 
@@ -65,14 +80,52 @@ class DevCrew:
             requirements: Raw project requirements provided by the user.
             project_name: Short identifier used for output filenames.
         """
+        return self._kickoff_internal(
+            requirements=requirements,
+            project_name=project_name,
+            require_strategy_approval=False,
+            strategy_approval_callback=None,
+        )
+
+    def kickoff_with_strategy_gate(
+        self,
+        requirements: str,
+        project_name: str = "project",
+        *,
+        require_strategy_approval: bool = True,
+        strategy_approval_callback: Callable[[dict[str, str]], bool] | None = None,
+    ) -> dict[str, str]:
+        """Run the full pipeline with optional strategy approval gate."""
+        return self._kickoff_internal(
+            requirements=requirements,
+            project_name=project_name,
+            require_strategy_approval=require_strategy_approval,
+            strategy_approval_callback=strategy_approval_callback,
+        )
+
+    def _kickoff_internal(
+        self,
+        *,
+        requirements: str,
+        project_name: str,
+        require_strategy_approval: bool,
+        strategy_approval_callback: Callable[[dict[str, str]], bool] | None,
+    ) -> dict[str, str]:
         outputs: dict[str, str] = {}
         context_parts: list[str] = []
         completed_roles: set[str] = set()
 
         role_to_agent = {agent.role: agent for agent in self.agents}
 
-        # Round 1: PM -> Architect -> Backend Developer
-        for role in ["Product Manager", "Software Architect", "Backend Developer"]:
+        # Phase 1: Strategy and market planning
+        strategy_roles = [
+            "CEO Planner",
+            "Market Researcher",
+            "Customer Support/Feedback Analyst",
+            "Product Manager",
+            "Compliance & Privacy Specialist",
+        ]
+        for role in strategy_roles:
             agent = role_to_agent.get(role)
             if agent is None:
                 continue
@@ -85,16 +138,61 @@ class DevCrew:
             )
             completed_roles.add(role)
 
-        # Round 2/3: QA + Reviewer findings, then Backend fix pass (bounded)
+        if require_strategy_approval and strategy_approval_callback:
+            strategy_outputs = {role: outputs[role] for role in strategy_roles if role in outputs}
+            approved = strategy_approval_callback(strategy_outputs)
+            if not approved:
+                return outputs
+
+        # Phase 2: Architecture + design + build execution
+        for role in [
+            "Software Architect",
+            "UI/UX Designer",
+            "Database Engineer",
+            "API Integration Engineer",
+            "Frontend Developer",
+            "Backend Developer",
+            "Data/Analytics Engineer",
+        ]:
+            agent = role_to_agent.get(role)
+            if agent is None:
+                continue
+            self._execute_agent(
+                agent=agent,
+                requirements=requirements,
+                context_parts=context_parts,
+                outputs=outputs,
+                project_name=project_name,
+            )
+            completed_roles.add(role)
+
+        # Phase 3/4: QA + Security + Reviewer findings, then implementation fix pass (bounded)
+        performance_agent = role_to_agent.get("Performance Engineer")
         qa_agent = role_to_agent.get("QA Engineer")
+        security_agent = role_to_agent.get("Security Engineer")
         reviewer_agent = role_to_agent.get("Code Reviewer")
+        database_agent = role_to_agent.get("Database Engineer")
+        api_integration_agent = role_to_agent.get("API Integration Engineer")
+        analytics_agent = role_to_agent.get("Data/Analytics Engineer")
+        frontend_agent = role_to_agent.get("Frontend Developer")
         backend_agent = role_to_agent.get("Backend Developer")
+        implementation_agents = [
+            agent
+            for agent in [
+                frontend_agent,
+                backend_agent,
+                database_agent,
+                api_integration_agent,
+                analytics_agent,
+            ]
+            if agent is not None
+        ]
         must_address: list[str] = []
 
-        if qa_agent or reviewer_agent:
+        if performance_agent or qa_agent or reviewer_agent or security_agent:
             for iteration in range(self.max_fix_iterations + 1):
                 round_findings: list[str] = []
-                for review_agent in [qa_agent, reviewer_agent]:
+                for review_agent in [performance_agent, qa_agent, security_agent, reviewer_agent]:
                     if review_agent is None:
                         continue
                     response = self._execute_agent(
@@ -116,20 +214,29 @@ class DevCrew:
                 if self.stop_on_no_major_issues and not self._has_blocking_issues(must_address):
                     break
 
-                if backend_agent is None or iteration >= self.max_fix_iterations:
+                if not implementation_agents or iteration >= self.max_fix_iterations:
                     break
 
-                fix_task = self._render_fix_task(requirements=requirements, iteration=iteration + 1)
-                self._execute_agent(
-                    agent=backend_agent,
+                fix_task = self._render_fix_task(
                     requirements=requirements,
-                    context_parts=context_parts,
-                    outputs=outputs,
-                    project_name=project_name,
-                    task_description=fix_task,
-                    must_address=must_address,
+                    iteration=iteration + 1,
+                    reviewer_roles=[
+                        agent.role
+                        for agent in [performance_agent, security_agent, qa_agent, reviewer_agent]
+                        if agent is not None
+                    ],
                 )
-                completed_roles.add(backend_agent.role)
+                for implementation_agent in implementation_agents:
+                    self._execute_agent(
+                        agent=implementation_agent,
+                        requirements=requirements,
+                        context_parts=context_parts,
+                        outputs=outputs,
+                        project_name=project_name,
+                        task_description=fix_task,
+                        must_address=must_address,
+                    )
+                    completed_roles.add(implementation_agent.role)
 
         # Run any remaining enabled agents (e.g., DevOps) in standard order
         ordered_agents = sorted(
@@ -169,7 +276,7 @@ class DevCrew:
         key = _ROLE_TO_TASK_KEY.get(agent.role)
         if key is None or key not in TASKS:
             raise ValueError(
-                f"No task defined for role '{agent.role}'.  "
+                f"No task defined for role '{agent.role}'. "
                 f"Known roles: {list(_ROLE_TO_TASK_KEY.keys())}"
             )
         return TASKS[key]
@@ -227,9 +334,10 @@ class DevCrew:
                 return True
         return False
 
-    def _render_fix_task(self, requirements: str, iteration: int) -> str:
+    def _render_fix_task(self, requirements: str, iteration: int, reviewer_roles: list[str]) -> str:
+        review_scope = ", ".join(reviewer_roles) if reviewer_roles else "review agents"
         return (
-            f"Fix pass #{iteration}: Address only QA/Reviewer checklist items for the "
+            f"Fix pass #{iteration}: Address only {review_scope} checklist items for the "
             "current implementation. Keep architecture unchanged. Update code and setup "
             "instructions as needed. Be explicit about what was fixed and what remains.\n\n"
             f"Original requirements:\n---\n{requirements}\n---"

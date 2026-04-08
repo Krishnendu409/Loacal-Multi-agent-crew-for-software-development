@@ -15,8 +15,8 @@ runtime.
 | 💻 **Runs locally** | Works on mid-range laptops (4 GB RAM minimum with `phi3` or `llama3.2`) |
 | 🗣️ **Agent communication** | Each agent reads compressed prior context + original requirements + QA/Reviewer checklists |
 | 🧠 **Built-in skill packs** | Shared + role-specific skills are injected into prompts, configurable in `config.yaml` |
-| 👥 **Full dev team** | PM → Architect → Developer → QA → Code Reviewer → DevOps (optional) |
-| 🔁 **Fix-pass loop** | Dev → QA/Reviewer → Dev remediation pass (bounded iterations) |
+| 👥 **Full dev team** | 18-role local team spanning strategy, market research, design, engineering, review, reliability, docs, and release (see architecture flow below) |
+| 🔁 **Fix-pass loop** | Implementation roles → Performance/Security/QA/Reviewer → targeted remediation pass (bounded iterations) |
 | 📄 **Saved outputs** | Every agent's response and a final compiled report saved to `output/` |
 | ⚙️ **Configurable** | Swap models, enable/disable agents, change output paths via `config.yaml` |
 
@@ -25,13 +25,36 @@ runtime.
 ## 🏗️ Architecture
 
 ```
-requirements (you)
+problem statement (you)
         │
         ▼
 ┌─────────────────┐
-│  Product Manager│  Analyses requirements → product spec
+│   CEO Planner   │  Creates strategy + execution roadmap
 └────────┬────────┘
          │  context
+         ▼
+┌─────────────────┐
+│Market Researcher│  Finds market gaps and differentiation
+└────────┬────────┘
+         │  context
+         ▼
+┌───────────────────────────────┐
+│Customer Support/Feedback Anal.│  Converts pain points into requirements
+└────────┬──────────────────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│  Product Manager│  Finalizes strategy + product spec
+└────────┬────────┘
+         │  context
+         ▼
+┌───────────────────────────────┐
+│Compliance & Privacy Specialist│  Defines mandatory controls
+└────────┬──────────────────────┘
+         │
+         ▼
+     [USER APPROVAL GATE]
+         │
          ▼
 ┌─────────────────┐
 │   Architect     │  Designs system architecture
@@ -39,7 +62,42 @@ requirements (you)
          │  context
          ▼
 ┌─────────────────┐
-│Backend Developer│  Implements the code
+│  UI/UX Designer │  Defines journeys, interactions, and accessibility
+└────────┬────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│Database Engineer│  Defines schema/index/migration strategy
+└────────┬────────┘
+         │  context
+         ▼
+┌───────────────────────┐
+│API Integration Engineer│  Defines resilient API contracts
+└────────┬──────────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│Frontend Developer│ Designs and builds UX/UI layer
+└────────┬────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│Backend Developer│  Implements core logic
+└────────┬────────┘
+         │  context
+         ▼
+┌────────────────────┐
+│Data/Analytics Eng. │  Defines KPI/event instrumentation
+└────────┬───────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│Performance Eng. │  Finds bottlenecks and tuning priorities
+└────────┬────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│Security Engineer│  Threat-models and reviews vulnerabilities
 └────────┬────────┘
          │  context
          ▼
@@ -51,6 +109,21 @@ requirements (you)
 ┌─────────────────┐
 │  Code Reviewer  │  Reviews everything for quality & security
 └────────┬────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│Technical Writer │  Creates docs + runbooks
+└────────┬────────┘
+         │  context
+         ▼
+┌──────────────────────┐
+│SRE / Reliability Eng.│  Defines SLOs and incident readiness
+└────────┬─────────────┘
+         │  context
+         ▼
+┌─────────────────┐
+│ Release Manager │  Final go/no-go release plan
+└────────┬────────┘
          │  (optional)
          ▼
 ┌─────────────────┐
@@ -59,8 +132,10 @@ requirements (you)
 ```
 
 Every agent receives **original requirements + compressed accumulated context**
-from previous agents. QA/Reviewer can emit a must-address checklist that is fed
-back to the Developer for a remediation pass.
+from previous agents. Performance/Security/QA/Reviewer can emit must-address
+checklists that are fed back to implementation roles for a remediation pass.
+The strategy phase is explicitly finalized with user approval before architecture
+and build work starts.
 
 ---
 
@@ -72,14 +147,14 @@ Download and install [Ollama](https://ollama.com/download) for your OS, then
 pull a free model:
 
 ```bash
-# Recommended: lightweight and fast on mid-range laptops (~4 GB RAM)
-ollama pull mistral
+# Reasoning model
+ollama pull qwen2.5:7b-instruct
 
-# Ultra-lightweight option (~2 GB RAM)
-ollama pull llama3.2
-
-# Best code quality (~4 GB RAM)
+# Coding model
 ollama pull deepseek-coder
+
+# Critic model
+ollama pull phi3:mini
 ```
 
 Start the Ollama daemon (if it is not already running):
@@ -102,6 +177,9 @@ pip install -r requirements.txt
 python main.py run
 ```
 
+By default, strategy approval requires explicit confirmation (`Continue` defaults to `No`).
+Use `--auto-approve-strategy` to proceed non-interactively.
+
 **Inline mode**:
 
 ```bash
@@ -113,7 +191,7 @@ python main.py run \
 **Use a different model for this run**:
 
 ```bash
-python main.py run --model llama3.2 --project "Todo API"
+python main.py run --model deepseek-coder:6.7b --project "Todo API"
 ```
 
 ---
@@ -124,33 +202,67 @@ Copy or edit `config.yaml` to customise the system:
 
 ```yaml
 llm:
-  model: mistral          # global fallback model (routing below is preferred)
+  model: qwen2.5:7b-instruct
   base_url: http://localhost:11434
   retries: 1
   timeout_seconds: 120
+  allowed_models:
+    - qwen2.5:7b-instruct
+    - deepseek-coder:6.7b
+    - phi3:mini
   options:
     temperature: 0.4
     num_predict: 2048
   routing:
+    ceo_planner: qwen2.5:7b-instruct
+    market_researcher: qwen2.5:7b-instruct
+    customer_support_feedback_analyst: qwen2.5:7b-instruct
     product_manager: qwen2.5:7b-instruct
+    compliance_privacy_specialist: phi3:mini
     architect: qwen2.5:7b-instruct
-    backend_developer: qwen2.5-coder:7b
+    ui_ux_designer: qwen2.5:7b-instruct
+    database_engineer: deepseek-coder:6.7b
+    api_integration_engineer: deepseek-coder:6.7b
+    frontend_developer: deepseek-coder:6.7b
+    backend_developer: deepseek-coder:6.7b
+    data_analytics_engineer: deepseek-coder:6.7b
+    performance_engineer: phi3:mini
+    security_engineer: phi3:mini
     qa_engineer: phi3:mini
     code_reviewer: phi3:mini
-    devops_engineer: llama3.2:3b
+    technical_writer: qwen2.5:7b-instruct
+    sre_reliability_engineer: deepseek-coder:6.7b
+    release_manager: qwen2.5:7b-instruct
+    devops_engineer: deepseek-coder:6.7b
   fallbacks:
-    backend_developer: [deepseek-coder:6.7b, llama3.2:3b]
+    ceo_planner: [phi3:mini]
+    market_researcher: [phi3:mini]
+    backend_developer: [qwen2.5:7b-instruct]
   role_options:
     backend_developer: {temperature: 0.2, num_predict: 2048}
     qa_engineer: {temperature: 0.1, num_predict: 1024}
     code_reviewer: {temperature: 0.1, num_predict: 1024}
 
 agents:
+  ceo_planner: true
+  market_researcher: true
+  customer_support_feedback_analyst: true
   product_manager: true
+  compliance_privacy_specialist: true
   architect: true
+  ui_ux_designer: true
+  database_engineer: true
+  api_integration_engineer: true
+  frontend_developer: true
   backend_developer: true
+  data_analytics_engineer: true
+  performance_engineer: true
+  security_engineer: true
   qa_engineer: true
   code_reviewer: true
+  technical_writer: true
+  sre_reliability_engineer: true
+  release_manager: true
   devops_engineer: false  # set to true to add deployment configs
 
 output:
@@ -161,6 +273,7 @@ output:
 crew:
   max_fix_iterations: 1
   stop_on_no_major_issues: true
+  require_strategy_approval: true
 
 skills:
   include_default_role_skills: true
@@ -177,8 +290,20 @@ skills:
     - verification mindset
     - documentation discipline
   per_role:
+    customer_support_feedback_analyst: [support signal prioritization]
+    compliance_privacy_specialist: [privacy impact thinking]
+    ui_ux_designer: [interaction design and prototype clarity]
+    database_engineer: [schema evolution safety]
+    api_integration_engineer: [resilient integration contracts]
+    frontend_developer: [ui consistency and accessibility]
     backend_developer: [dependency hygiene]
+    data_analytics_engineer: [measurement reliability]
+    performance_engineer: [evidence-driven optimization]
+    security_engineer: [threat-led validation]
     qa_engineer: [risk-based test prioritization]
+    technical_writer: [high-signal operational documentation]
+    sre_reliability_engineer: [slo-first reliability planning]
+    release_manager: [go-no-go discipline]
   include: []
   per_role_include: {}
   exclude: []
@@ -222,7 +347,7 @@ Inventory and mapping artifacts:
 ├── src/
 │   ├── agents/
 │   │   ├── base_agent.py        # Agent base class
-│   │   └── definitions.py       # All role definitions & build_agents()
+│   │   └── definitions.py       # Full role definitions across strategy, build, review, and release
 │   ├── tasks/
 │   │   └── software_dev_tasks.py  # Task templates for each role
 │   ├── crew/
@@ -266,16 +391,13 @@ python -m pytest tests/ -v
 
 ---
 
-## 💡 Recommended Models by Hardware
+## 💡 Model Policy
 
-| RAM available | Model | Pull command |
-|---------------|-------|--------------|
-| 2 GB | `phi3` | `ollama pull phi3` |
-| 2 GB | `llama3.2` | `ollama pull llama3.2` |
-| 4 GB | `mistral` (default) | `ollama pull mistral` |
-| 4 GB | `deepseek-coder` | `ollama pull deepseek-coder` |
-| 8 GB | `llama3` | `ollama pull llama3` |
-| 8 GB | `codestral` | `ollama pull codestral` |
+This project is configured to use only:
+
+- `qwen2.5:7b-instruct` (reasoning/planning)
+- `deepseek-coder:6.7b` (implementation/frontend/backend/debugging)
+- `phi3:mini` (critique/QA/review)
 
 ---
 
