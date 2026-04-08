@@ -625,9 +625,7 @@ class DevCrew:
         graph.set_start("review")
         graph.run(
             state,
-            max_steps=max(
-                10, (self.max_fix_iterations + 1) * self.REVIEW_GRAPH_STEP_MULTIPLIER
-            ),
+            max_steps=max(10, (self.max_fix_iterations + 1) * self.REVIEW_GRAPH_STEP_MULTIPLIER),
         )
 
     def _select_fix_role(self, issues: list[str], implementations: dict[str, Agent]) -> str | None:
