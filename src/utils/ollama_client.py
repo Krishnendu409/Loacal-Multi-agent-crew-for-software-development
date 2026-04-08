@@ -6,6 +6,7 @@ easily swap backends in the future.
 
 from __future__ import annotations
 
+import threading
 import time
 import threading
 from typing import Any
@@ -40,20 +41,19 @@ class OllamaClient:
         self.options: dict[str, Any] = options or {}
         self.retries = max(retries, 0)
         self.timeout_seconds = timeout_seconds
-        self._client = None
-        self._cache: dict[tuple[str, str, str], str] = {}
-        self._cache_order: list[tuple[str, str, str]] = []
-        self._cache_limit = 128
-        self._cache_lock = threading.Lock()
+        self._client: Any = None
+        self._client_lock = threading.Lock()
 
-    def _build_client(self) -> Any:
-        if self._client is not None:
-            return self._client
-        ollama = _get_ollama()
-        kwargs: dict[str, Any] = {"host": self.base_url}
-        if self.timeout_seconds:
-            kwargs["timeout"] = self.timeout_seconds
-        self._client = ollama.Client(**kwargs)
+    def _get_client(self) -> Any:
+        """Return the shared Ollama client, creating it on first use (thread-safe)."""
+        if self._client is None:
+            with self._client_lock:
+                if self._client is None:
+                    ollama = _get_ollama()
+                    kwargs: dict[str, Any] = {"host": self.base_url}
+                    if self.timeout_seconds:
+                        kwargs["timeout"] = self.timeout_seconds
+                    self._client = ollama.Client(**kwargs)
         return self._client
 
     def chat(
@@ -64,9 +64,10 @@ class OllamaClient:
         model: str | None = None,
         options: dict[str, Any] | None = None,
         fallback_models: list[str] | None = None,
+        retries_override: int | None = None,
     ) -> str:
         """Send a chat message and return the assistant's reply as a string."""
-        client = self._build_client()
+        client = self._get_client()
 
         messages = []
         if system_prompt:
@@ -82,7 +83,8 @@ class OllamaClient:
             model_candidates.extend([m for m in fallback_models if m])
 
         errors: list[str] = []
-        attempts = self.retries + 1
+        effective_retries = self.retries if retries_override is None else max(retries_override, 0)
+        attempts = effective_retries + 1
         for candidate in model_candidates:
             cache_key = (
                 candidate,
@@ -99,21 +101,11 @@ class OllamaClient:
                         messages=messages,
                         options=merged_options or None,
                     )
-                    message = response.get("message") if isinstance(response, dict) else None
-                    if not isinstance(message, dict) or not isinstance(
-                        message.get("content"), str
-                    ):
-                        raise RuntimeError(
-                            "Ollama response missing expected message.content string."
-                        )
-                    content = message["content"]
-                    with self._cache_lock:
-                        self._cache[cache_key] = content
-                        self._cache_order.append(cache_key)
-                        if len(self._cache_order) > self._cache_limit:
-                            oldest = self._cache_order.pop(0)
-                            self._cache.pop(oldest, None)
-                    return content
+                    message = response.get("message", {}) if isinstance(response, dict) else {}
+                    content = message.get("content") if isinstance(message, dict) else None
+                    if isinstance(content, str):
+                        return content
+                    raise RuntimeError("Ollama response missing message.content")
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")
                     if attempt < attempts:

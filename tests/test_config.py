@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import textwrap
-from pathlib import Path
 
 import pytest
 
@@ -88,12 +87,12 @@ def test_load_config_overrides_model(tmp_path):
         textwrap.dedent(
             """\
             llm:
-              model: llama3.2
+              model: deepseek-coder:6.7b
             """
         )
     )
     cfg = load_config(config_file)
-    assert cfg["llm"]["model"] == "llama3.2"
+    assert cfg["llm"]["model"] == "deepseek-coder:6.7b"
     # defaults still present
     assert cfg["llm"]["base_url"] == "http://localhost:11434"
 
@@ -126,3 +125,114 @@ def test_load_config_handles_invalid_yaml_type(tmp_path):
     config_file.write_text("- item1\n- item2\n")
     cfg = load_config(config_file)
     assert cfg["llm"]["model"] == "qwen2.5:7b-instruct"
+
+
+# ---------------------------------------------------------------------------
+# P1 #8: environment variable overrides
+# ---------------------------------------------------------------------------
+
+
+def test_load_config_env_override_model(tmp_path, monkeypatch):
+    monkeypatch.setenv("OLLAMA_MODEL", "phi3:mini")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["llm"]["model"] == "phi3:mini"
+
+
+def test_load_config_env_override_base_url(tmp_path, monkeypatch):
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://myserver:11434")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["llm"]["base_url"] == "http://myserver:11434"
+
+
+def test_load_config_env_override_retries(tmp_path, monkeypatch):
+    monkeypatch.setenv("OLLAMA_RETRIES", "3")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["llm"]["retries"] == 3
+
+
+def test_load_config_env_override_timeout(tmp_path, monkeypatch):
+    monkeypatch.setenv("OLLAMA_TIMEOUT", "60")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["llm"]["timeout_seconds"] == 60
+
+
+def test_load_config_env_override_temperature(tmp_path, monkeypatch):
+    monkeypatch.setenv("OLLAMA_TEMPERATURE", "0.9")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["llm"]["options"]["temperature"] == pytest.approx(0.9)
+
+
+def test_load_config_env_override_num_predict(tmp_path, monkeypatch):
+    monkeypatch.setenv("OLLAMA_NUM_PREDICT", "512")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["llm"]["options"]["num_predict"] == 512
+
+
+def test_load_config_env_override_max_fix_iterations(tmp_path, monkeypatch):
+    monkeypatch.setenv("CREW_MAX_FIX_ITERATIONS", "5")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["crew"]["max_fix_iterations"] == 5
+
+
+def test_load_config_env_override_stop_on_no_major_issues_false(tmp_path, monkeypatch):
+    monkeypatch.setenv("CREW_STOP_ON_NO_MAJOR_ISSUES", "false")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["crew"]["stop_on_no_major_issues"] is False
+
+
+def test_load_config_env_override_require_strategy_approval_false(tmp_path, monkeypatch):
+    monkeypatch.setenv("CREW_REQUIRE_STRATEGY_APPROVAL", "0")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["crew"]["require_strategy_approval"] is False
+
+
+def test_load_config_env_override_output_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("OUTPUT_DIR", "/tmp/myoutput")
+    cfg = load_config(tmp_path / "nonexistent.yaml")
+    assert cfg["output"]["directory"] == "/tmp/myoutput"
+
+
+def test_load_config_env_overrides_take_precedence_over_file(tmp_path, monkeypatch):
+    """Env vars should win over file-level settings."""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("llm:\n  model: qwen2.5:7b-instruct\n")
+    monkeypatch.setenv("OLLAMA_MODEL", "deepseek-coder:6.7b")
+    cfg = load_config(config_file)
+    assert cfg["llm"]["model"] == "deepseek-coder:6.7b"
+
+
+def test_load_config_rejects_model_outside_allow_list(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("llm:\n  model: llama3.2\n")
+    with pytest.raises(ValueError, match="llm.model"):
+        load_config(config_file)
+
+
+def test_load_config_rejects_unknown_routing_role(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        textwrap.dedent(
+            """\
+            llm:
+              routing:
+                unknown_role: qwen2.5:7b-instruct
+            """
+        )
+    )
+    with pytest.raises(ValueError, match="unknown role"):
+        load_config(config_file)
+
+
+def test_load_config_rejects_negative_role_retries(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        textwrap.dedent(
+            """\
+            llm:
+              role_retries:
+                backend_developer: -1
+            """
+        )
+    )
+    with pytest.raises(ValueError, match="non-negative integer"):
+        load_config(config_file)

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.agents.base_agent import Agent
-from src.agents.definitions import build_agents, AGENT_ORDER
+from src.agents.definitions import AGENT_ORDER, build_agents, register_agent_role
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +179,7 @@ def test_build_agents_applies_role_routing_and_fallbacks(mock_llm):
         "routing": {"backend_developer": "deepseek-coder:6.7b"},
         "fallbacks": {"backend_developer": ["qwen2.5:7b-instruct", "phi3:mini"]},
         "role_options": {"backend_developer": {"num_predict": 1024, "temperature": 0.2}},
+        "role_retries": {"backend_developer": 3},
     }
     agents = build_agents(mock_llm, enabled=enabled, llm_config=llm_config)
     assert len(agents) == 1
@@ -186,6 +187,7 @@ def test_build_agents_applies_role_routing_and_fallbacks(mock_llm):
     assert agent.llm_model == "deepseek-coder:6.7b"
     assert agent.llm_fallback_models == ["qwen2.5:7b-instruct", "phi3:mini"]
     assert agent.llm_options == {"num_predict": 1024, "temperature": 0.2}
+    assert agent.llm_retries == 3
 
 
 def test_build_agents_filters_models_against_allow_list(mock_llm):
@@ -240,3 +242,136 @@ def test_build_agents_applies_external_ecc_pack(mock_llm):
     assert len(agents) == 1
     agent = agents[0]
     assert "python-testing" in agent.skills
+
+
+# ---------------------------------------------------------------------------
+# P0 #3: no silent TypeError swallowing in Agent.execute
+# ---------------------------------------------------------------------------
+
+
+def test_agent_execute_propagates_runtime_error():
+    """If the LLM raises an error other than TypeError it should propagate."""
+    llm = MagicMock()
+    llm.chat.side_effect = RuntimeError("connection refused")
+    agent = Agent(role="Product Manager", goal="Write specs", backstory="PM", llm=llm)
+    with pytest.raises(RuntimeError, match="connection refused"):
+        agent.execute("Build a todo app")
+
+
+def test_agent_execute_passes_model_and_options_to_llm():
+    """Agent.execute must forward llm_model, llm_options, and llm_fallback_models."""
+    llm = MagicMock()
+    llm.chat.return_value = "ok"
+    agent = Agent(
+        role="Backend Developer",
+        goal="Write code",
+        backstory="Senior dev",
+        llm=llm,
+        llm_model="deepseek-coder:6.7b",
+        llm_options={"temperature": 0.2},
+        llm_fallback_models=["qwen2.5:7b-instruct"],
+        llm_retries=2,
+    )
+    agent.execute("Implement feature")
+    _, kwargs = llm.chat.call_args
+    assert kwargs.get("model") == "deepseek-coder:6.7b"
+    assert kwargs.get("options") == {"temperature": 0.2}
+    assert kwargs.get("fallback_models") == ["qwen2.5:7b-instruct"]
+    assert kwargs.get("retries_override") == 2
+
+
+def test_agent_execute_does_not_swallow_type_error():
+    """A TypeError from the LLM (e.g., unexpected keyword argument) must propagate."""
+    llm = MagicMock()
+    llm.chat.side_effect = TypeError("unexpected keyword argument 'model'")
+    agent = Agent(role="Product Manager", goal="Specs", backstory="PM", llm=llm)
+    with pytest.raises(TypeError):
+        agent.execute("Build feature")
+
+
+# ---------------------------------------------------------------------------
+# P0 #1: OllamaClient reuses the same underlying client instance
+# ---------------------------------------------------------------------------
+
+
+def test_ollama_client_reuses_instance():
+    """The same ollama.Client object must be returned on every call."""
+    from unittest.mock import MagicMock, patch
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        c1 = oc._get_client()
+        c2 = oc._get_client()
+
+    assert c1 is c2
+    # Client constructor called exactly once despite two _get_client() calls
+    mock_ollama_module.Client.assert_called_once()
+
+
+def test_ollama_client_chat_reuses_instance_across_calls():
+    """Calling chat() multiple times must not create a new ollama.Client each time."""
+    from unittest.mock import MagicMock, patch
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+    # Simulate a successful chat response
+    mock_client_instance.chat.return_value = {"message": {"content": "hello"}}
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        oc.chat("system", "user message 1")
+        oc.chat("system", "user message 2")
+
+    # The underlying ollama.Client constructor must have been called only once
+    mock_ollama_module.Client.assert_called_once()
+
+
+def test_ollama_client_chat_raises_on_missing_message_content():
+    """Malformed responses must raise a clear runtime error."""
+    from unittest.mock import MagicMock, patch
+
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+    mock_client_instance.chat.return_value = {"unexpected": "shape"}
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        with pytest.raises(RuntimeError, match="missing message.content"):
+            oc.chat("system", "user")
+
+
+def test_register_agent_role_allows_plugin_extension(mock_llm):
+    import src.agents.definitions as agent_defs
+
+    key = "temporary_plugin_role"
+
+    def _factory(llm, llm_config):
+        return Agent(
+            role="Temporary Plugin Role",
+            goal="Test plugin path",
+            backstory="Plugin agent",
+            llm=llm,
+        )
+
+    register_agent_role(key, _factory, after="release_manager")
+    try:
+        enabled = {k: False for k in AGENT_ORDER}
+        enabled[key] = True
+        agents = build_agents(mock_llm, enabled=enabled)
+        assert len(agents) == 1
+        assert agents[0].role == "Temporary Plugin Role"
+    finally:
+        # Cleanup registry mutation for test isolation
+        if key in AGENT_ORDER:
+            AGENT_ORDER.remove(key)
+        agent_defs._AGENT_FACTORIES.pop(key, None)

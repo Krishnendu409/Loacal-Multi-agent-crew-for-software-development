@@ -227,6 +227,8 @@ def _apply_budget(skills: list[str], skills_config: dict[str, object] | None) ->
     raw = skills_config.get("max_skills_per_agent")
     if raw is None:
         return skills
+    if not isinstance(raw, (int, str)):
+        return skills
     try:
         budget = int(raw)
     except (TypeError, ValueError):

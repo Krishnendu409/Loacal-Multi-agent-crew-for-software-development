@@ -31,6 +31,7 @@ Show the current configuration:
 from __future__ import annotations
 
 import sys
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -52,6 +53,7 @@ from src.config.settings import load_config
 from src.crew.dev_crew import DevCrew
 from src.utils import display
 from src.utils.ollama_client import OllamaClient
+from src.utils.research import fetch_research_context
 
 app = typer.Typer(
     name="dev-crew",
@@ -88,9 +90,26 @@ def run(
         "--auto-approve-strategy",
         help="Skip strategy confirmation prompt and proceed automatically.",
     ),
+    start_from_role: Optional[str] = typer.Option(
+        None,
+        "--start-from-role",
+        help="Resume/execute beginning from this exact role name.",
+    ),
+    resume_run_dir: Optional[Path] = typer.Option(
+        None,
+        "--resume-run-dir",
+        help="Path to an existing output run directory to seed prior context from saved role files.",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        help="Enable verbose debug logging.",
+    ),
 ) -> None:
     """Start the multi-agent development crew on a new project."""
     display.print_banner()
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG)
 
     cfg = load_config(config)
     allowed_models = {
@@ -121,8 +140,10 @@ def run(
                 if line.strip().upper() == "END":
                     break
                 lines.append(line)
-        except (EOFError, KeyboardInterrupt):
-            display.print_error("Input cancelled. Exiting.")
+        except EOFError:
+            pass  # stdin closed (e.g., piped input) – treat as end of requirements
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interrupted.[/yellow]")
             raise typer.Exit(code=1)
         requirements = "\n".join(lines)
 
@@ -169,7 +190,21 @@ def run(
         stop_on_no_major_issues=bool(
             cfg.get("crew", {}).get("stop_on_no_major_issues", True)
         ),
+        blocking_severities=tuple(
+            cfg.get("crew", {}).get("blocking_severities", ["critical", "major"])
+        ),
     )
+
+    resume_outputs = _load_resume_outputs(resume_run_dir, [a.role for a in agents])
+    research_context = ""
+    if bool(cfg.get("crew", {}).get("research_mode", False)):
+        research_context = fetch_research_context(
+            cfg.get("crew", {}).get("research_urls", []),
+            timeout_seconds=int(cfg.get("crew", {}).get("research_timeout_seconds", 10)),
+            max_chars_per_source=int(
+                cfg.get("crew", {}).get("research_max_chars_per_source", 2000)
+            ),
+        )
 
     try:
         require_gate = bool(cfg.get("crew", {}).get("require_strategy_approval", True))
@@ -188,6 +223,9 @@ def run(
             project_name=project,
             require_strategy_approval=require_gate,
             strategy_approval_callback=_confirm_strategy if require_gate else None,
+            start_from_role=start_from_role,
+            resume_outputs=resume_outputs,
+            research_context=research_context,
         )
     except Exception as exc:  # noqa: BLE001
         display.print_error(str(exc))
@@ -204,13 +242,18 @@ def models() -> None:
         cfg = load_config()
         client = ollama.Client(host=cfg["llm"]["base_url"])
         model_list = client.list()
-        if not model_list.get("models"):
+        models_data = _extract_ollama_models(model_list)
+        if not models_data:
             console.print("[yellow]No models found.  Pull one with:[/yellow]  ollama pull mistral")
             return
         console.print("\n[bold cyan]Available Ollama models:[/bold cyan]")
-        for m in model_list["models"]:
-            name = m.get("name") or m.get("model", "unknown")
-            size_gb = m.get("size", 0) / 1_073_741_824
+        for m in models_data:
+            if hasattr(m, "model"):
+                name = m.model or "unknown"
+                size_gb = (m.size or 0) / 1_073_741_824
+            else:
+                name = m.get("name") or m.get("model", "unknown")
+                size_gb = m.get("size", 0) / 1_073_741_824
             console.print(f"  • [green]{name}[/green]  ({size_gb:.1f} GB)")
         console.print()
     except ImportError:
@@ -236,6 +279,19 @@ def show_config(
 # ---------------------------------------------------------------------------
 
 
+def _extract_ollama_models(model_list: object) -> list:
+    """Extract the models list from an Ollama list response.
+
+    Handles both the current SDK (``ListResponse`` with a ``.models``
+    attribute) and the old dict-style response for backward compatibility.
+    """
+    if hasattr(model_list, "models"):
+        return model_list.models or []  # type: ignore[attr-defined]
+    if isinstance(model_list, dict):
+        return model_list.get("models") or []
+    return []
+
+
 def _hint_common_errors(exc: Exception) -> None:
     msg = str(exc).lower()
     if "connection" in msg or "connect" in msg or "refused" in msg:
@@ -257,6 +313,28 @@ def _validate_allowed_model(model_name: str, allowed_models: set[str], context: 
             f"Allowed: {sorted(allowed_models)}"
         )
         raise typer.Exit(code=1)
+
+
+def _load_resume_outputs(run_dir: Path | None, known_roles: list[str]) -> dict[str, str]:
+    if run_dir is None:
+        return {}
+    if not run_dir.exists() or not run_dir.is_dir():
+        raise ValueError(f"Invalid --resume-run-dir: '{run_dir}' is not a directory.")
+    role_by_file = {_safe_filename(role): role for role in known_roles}
+    loaded: dict[str, str] = {}
+    for file in run_dir.glob("*.md"):
+        if file.name.upper() == "FINAL_REPORT.MD":
+            continue
+        stem = file.stem.lower()
+        role = role_by_file.get(stem)
+        if role is None:
+            continue
+        loaded[role] = file.read_text(encoding="utf-8")
+    return loaded
+
+
+def _safe_filename(name: str) -> str:
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in name).lower()
 
 
 # ---------------------------------------------------------------------------

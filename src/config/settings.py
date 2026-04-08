@@ -105,6 +105,7 @@ _DEFAULTS: dict[str, Any] = {
             "release_manager": {"num_predict": 1024, "temperature": 0.2},
             "devops_engineer": {"num_predict": 1024, "temperature": 0.2},
         },
+        "role_retries": {},
     },
     "agents": {
         "ceo_planner": True,
@@ -137,6 +138,11 @@ _DEFAULTS: dict[str, Any] = {
         "max_fix_iterations": 3,
         "stop_on_no_major_issues": True,
         "require_strategy_approval": True,
+        "blocking_severities": ["critical", "major"],
+        "research_mode": False,
+        "research_urls": [],
+        "research_timeout_seconds": 10,
+        "research_max_chars_per_source": 2000,
     },
     "skills": {
         "include_default_role_skills": True,
@@ -168,6 +174,23 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
     """Load configuration from *path* (defaults to ``config.yaml`` in project root).
 
     Unknown keys are silently ignored; missing keys fall back to *_DEFAULTS*.
+
+    Environment variable overrides (all optional):
+
+    ==========================================  ============================================
+    Variable                                    Setting
+    ==========================================  ============================================
+    ``OLLAMA_BASE_URL``                         ``llm.base_url``
+    ``OLLAMA_MODEL``                            ``llm.model``
+    ``OLLAMA_RETRIES``                          ``llm.retries`` (integer)
+    ``OLLAMA_TIMEOUT``                          ``llm.timeout_seconds`` (integer)
+    ``OLLAMA_TEMPERATURE``                      ``llm.options.temperature`` (float)
+    ``OLLAMA_NUM_PREDICT``                      ``llm.options.num_predict`` (integer)
+    ``CREW_MAX_FIX_ITERATIONS``                 ``crew.max_fix_iterations`` (integer)
+    ``CREW_STOP_ON_NO_MAJOR_ISSUES``            ``crew.stop_on_no_major_issues`` (bool)
+    ``CREW_REQUIRE_STRATEGY_APPROVAL``          ``crew.require_strategy_approval`` (bool)
+    ``OUTPUT_DIR``                              ``output.directory``
+    ==========================================  ============================================
     """
     config_path = Path(path) if path else _DEFAULT_CONFIG_PATH
     file_config: dict[str, Any] = {}
@@ -178,25 +201,168 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
                 file_config = loaded
 
     merged = _deep_merge(_DEFAULTS, file_config)
-
-    env_overrides = {
-        "OLLAMA_URL": ("llm", "base_url"),
-        "MODEL_REASONING": ("llm", "routing", "ceo_planner"),
-        "MODEL_CODING": ("llm", "routing", "backend_developer"),
-        "MODEL_CRITIC": ("llm", "routing", "code_reviewer"),
-    }
-    for env_key, config_path_tuple in env_overrides.items():
-        value = os.getenv(env_key)
-        if not value:
-            continue
-        node: dict[str, Any] = merged
-        *parents, leaf = config_path_tuple
-        for key in parents:
-            child = node.get(key)
-            if not isinstance(child, dict):
-                child = {}
-                node[key] = child
-            node = child
-        node[leaf] = value
-
+    _apply_env_overrides(merged)
+    _validate_config(merged)
     return merged
+
+
+def _validate_config(cfg: dict[str, Any]) -> None:
+    """Validate loaded config and raise ValueError with actionable messages."""
+    llm_cfg = cfg.get("llm", {})
+    if not isinstance(llm_cfg, dict):
+        raise ValueError("Invalid config: 'llm' must be a mapping.")
+    known_roles: set[str] = set()
+    agents_cfg = cfg.get("agents", {})
+    if isinstance(agents_cfg, dict):
+        known_roles = {k for k in agents_cfg if isinstance(k, str) and k.strip()}
+
+    allowed_raw = llm_cfg.get("allowed_models", [])
+    if not isinstance(allowed_raw, list):
+        raise ValueError("Invalid config: 'llm.allowed_models' must be a list.")
+    allowed = {m.strip() for m in allowed_raw if isinstance(m, str) and m.strip()}
+
+    def _validate_model_ref(model_name: object, where: str) -> None:
+        if not isinstance(model_name, str) or not model_name.strip():
+            raise ValueError(f"Invalid config: '{where}' must be a non-empty model string.")
+        if allowed and model_name.strip() not in allowed:
+            raise ValueError(
+                f"Invalid config: '{where}' uses '{model_name}', which is not in "
+                f"llm.allowed_models={sorted(allowed)}"
+            )
+
+    _validate_model_ref(llm_cfg.get("model"), "llm.model")
+
+    routing = llm_cfg.get("routing", {})
+    if not isinstance(routing, dict):
+        raise ValueError("Invalid config: 'llm.routing' must be a mapping.")
+    for role, model_name in routing.items():
+        if not isinstance(role, str) or not role.strip():
+            raise ValueError("Invalid config: all 'llm.routing' keys must be non-empty role names.")
+        if known_roles and role not in known_roles:
+            raise ValueError(
+                f"Invalid config: 'llm.routing.{role}' references unknown role. "
+                f"Known roles: {sorted(known_roles)}"
+            )
+        _validate_model_ref(model_name, f"llm.routing.{role}")
+
+    fallbacks = llm_cfg.get("fallbacks", {})
+    if not isinstance(fallbacks, dict):
+        raise ValueError("Invalid config: 'llm.fallbacks' must be a mapping.")
+    for role, models in fallbacks.items():
+        if known_roles and role not in known_roles:
+            raise ValueError(
+                f"Invalid config: 'llm.fallbacks.{role}' references unknown role. "
+                f"Known roles: {sorted(known_roles)}"
+            )
+        if not isinstance(models, list):
+            raise ValueError(f"Invalid config: 'llm.fallbacks.{role}' must be a list.")
+        for idx, model_name in enumerate(models):
+            _validate_model_ref(model_name, f"llm.fallbacks.{role}[{idx}]")
+
+    role_options = llm_cfg.get("role_options", {})
+    if not isinstance(role_options, dict):
+        raise ValueError("Invalid config: 'llm.role_options' must be a mapping.")
+    for role, options in role_options.items():
+        if known_roles and role not in known_roles:
+            raise ValueError(
+                f"Invalid config: 'llm.role_options.{role}' references unknown role. "
+                f"Known roles: {sorted(known_roles)}"
+            )
+        if not isinstance(options, dict):
+            raise ValueError(f"Invalid config: 'llm.role_options.{role}' must be a mapping.")
+
+    role_retries = llm_cfg.get("role_retries", {})
+    if not isinstance(role_retries, dict):
+        raise ValueError("Invalid config: 'llm.role_retries' must be a mapping.")
+    for role, retries in role_retries.items():
+        if known_roles and role not in known_roles:
+            raise ValueError(
+                f"Invalid config: 'llm.role_retries.{role}' references unknown role. "
+                f"Known roles: {sorted(known_roles)}"
+            )
+        if not isinstance(retries, int) or retries < 0:
+            raise ValueError(
+                f"Invalid config: 'llm.role_retries.{role}' must be a non-negative integer."
+            )
+
+    crew_cfg = cfg.get("crew", {})
+    if not isinstance(crew_cfg, dict):
+        raise ValueError("Invalid config: 'crew' must be a mapping.")
+    blocking = crew_cfg.get("blocking_severities", ["critical", "major"])
+    if not isinstance(blocking, list) or not all(
+        isinstance(item, str) and item.strip() for item in blocking
+    ):
+        raise ValueError("Invalid config: 'crew.blocking_severities' must be a non-empty list.")
+    research_urls = crew_cfg.get("research_urls", [])
+    if not isinstance(research_urls, list):
+        raise ValueError("Invalid config: 'crew.research_urls' must be a list.")
+
+
+def _apply_env_overrides(cfg: dict[str, Any]) -> None:
+    """Mutate *cfg* in-place to apply environment variable overrides."""
+
+    def _str(var: str) -> str | None:
+        return os.environ.get(var) or None
+
+    def _int(var: str) -> int | None:
+        val = os.environ.get(var)
+        if val is None:
+            return None
+        try:
+            return int(val)
+        except ValueError:
+            return None
+
+    def _float(var: str) -> float | None:
+        val = os.environ.get(var)
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except ValueError:
+            return None
+
+    def _bool(var: str) -> bool | None:
+        val = os.environ.get(var)
+        if val is None:
+            return None
+        stripped = val.strip().lower()
+        if not stripped:
+            return None
+        return stripped not in ("0", "false", "no", "off")
+
+    # llm overrides
+    base_url = _str("OLLAMA_BASE_URL")
+    if base_url is not None:
+        cfg["llm"]["base_url"] = base_url
+    model = _str("OLLAMA_MODEL")
+    if model is not None:
+        cfg["llm"]["model"] = model
+    retries = _int("OLLAMA_RETRIES")
+    if retries is not None:
+        cfg["llm"]["retries"] = retries
+    timeout = _int("OLLAMA_TIMEOUT")
+    if timeout is not None:
+        cfg["llm"]["timeout_seconds"] = timeout
+    temperature = _float("OLLAMA_TEMPERATURE")
+    if temperature is not None:
+        cfg["llm"].setdefault("options", {})["temperature"] = temperature
+    num_predict = _int("OLLAMA_NUM_PREDICT")
+    if num_predict is not None:
+        cfg["llm"].setdefault("options", {})["num_predict"] = num_predict
+
+    # crew overrides
+    max_fix_iterations = _int("CREW_MAX_FIX_ITERATIONS")
+    if max_fix_iterations is not None:
+        cfg["crew"]["max_fix_iterations"] = max_fix_iterations
+    stop_on_no_major = _bool("CREW_STOP_ON_NO_MAJOR_ISSUES")
+    if stop_on_no_major is not None:
+        cfg["crew"]["stop_on_no_major_issues"] = stop_on_no_major
+    require_strategy_approval = _bool("CREW_REQUIRE_STRATEGY_APPROVAL")
+    if require_strategy_approval is not None:
+        cfg["crew"]["require_strategy_approval"] = require_strategy_approval
+
+    # output overrides
+    output_dir = _str("OUTPUT_DIR")
+    if output_dir is not None:
+        cfg["output"]["directory"] = output_dir

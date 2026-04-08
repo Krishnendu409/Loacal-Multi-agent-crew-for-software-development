@@ -33,6 +33,7 @@ class Agent:
     llm_model: str | None = None
     llm_options: dict[str, object] = field(default_factory=dict)
     llm_fallback_models: list[str] = field(default_factory=list)
+    llm_retries: int | None = None
 
     def _system_prompt(self) -> str:
         parts = [
@@ -102,25 +103,5 @@ class Agent:
             model=self.llm_model,
             options=self.llm_options,
             fallback_models=self.llm_fallback_models,
+            retries_override=self.llm_retries,
         )
-
-    def execute_structured(
-        self,
-        task_description: str,
-        message: AgentMessage,
-        *,
-        requirements: str = "",
-        must_address: list[str] | None = None,
-    ) -> AgentResult:
-        context = render_message_block(message)
-        raw = self.execute(
-            task_description=task_description,
-            context=context,
-            requirements=requirements,
-            must_address=must_address,
-        )
-        result = parse_structured_result(raw)
-        if not result.summary:
-            # Fallback for models that omit summary while still returning valid structure.
-            result.summary = json.dumps(result.to_dict(), ensure_ascii=False)
-        return result
