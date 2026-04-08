@@ -211,10 +211,19 @@ python main.py run --model deepseek-coder:6.7b --project "Todo API"
 Copy or edit `config.yaml` to customise the system:
 
 Environment overrides are also supported:
-- `OLLAMA_URL`
-- `MODEL_REASONING`
-- `MODEL_CODING`
-- `MODEL_CRITIC`
+- `OLLAMA_BASE_URL` (legacy alias: `OLLAMA_URL`)
+- `OLLAMA_MODEL`
+- `MODEL_REASONING` (role-group override for planning/reasoning roles)
+- `MODEL_CODING` (role-group override for implementation roles)
+- `MODEL_CRITIC` (role-group override for review/specialist roles)
+- `OLLAMA_RETRIES`
+- `OLLAMA_TIMEOUT`
+- `OLLAMA_TEMPERATURE`
+- `OLLAMA_NUM_PREDICT`
+- `CREW_MAX_FIX_ITERATIONS`
+- `CREW_STOP_ON_NO_MAJOR_ISSUES`
+- `CREW_REQUIRE_STRATEGY_APPROVAL`
+- `OUTPUT_DIR`
 
 ```yaml
 llm:
@@ -421,6 +430,7 @@ timing, model, retry, status, and structured section metadata.
 ```bash
 pip install ruff mypy pip-audit
 python -m ruff check .
+python -m ruff format --check .
 python -m mypy src main.py
 pip-audit
 ```
