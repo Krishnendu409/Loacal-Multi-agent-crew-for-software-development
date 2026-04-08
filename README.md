@@ -404,3 +404,12 @@ This project is configured to use only:
 ## 📄 License
 
 MIT
+
+---
+
+## 🤝 Contributing and Project Policy
+
+- Contribution guide: `CONTRIBUTING.md`
+- Project roadmap: `ROADMAP.md`
+- PR template: `.github/pull_request_template.md`
+- Issue templates: `.github/ISSUE_TEMPLATE/`
