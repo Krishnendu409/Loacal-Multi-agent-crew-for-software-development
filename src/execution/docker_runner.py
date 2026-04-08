@@ -45,6 +45,9 @@ class DockerExecutionRunner:
                 content = item.get("content", "")
                 if not rel_path or not isinstance(content, str):
                     continue
+                rel = Path(rel_path)
+                if rel.is_absolute() or ".." in rel.parts:
+                    continue
                 target = (root / rel_path).resolve()
                 if root not in target.parents and target != root:
                     continue

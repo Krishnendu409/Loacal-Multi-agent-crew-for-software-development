@@ -7,8 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+DEFAULT_CHUNK_SIZE = 900
+DEFAULT_CHUNK_OVERLAP = 150
 
-def _chunk_text(text: str, size: int = 900, overlap: int = 150) -> list[str]:
+
+def _chunk_text(
+    text: str, size: int = DEFAULT_CHUNK_SIZE, overlap: int = DEFAULT_CHUNK_OVERLAP
+) -> list[str]:
     cleaned = " ".join(text.split())
     if not cleaned:
         return []
@@ -68,7 +73,7 @@ class CrewMemory:
             vector = self._embed_text(chunk)
             if not vector:
                 continue
-            digest = hashlib.sha1(f"{role}:{task}:{idx}:{chunk}".encode("utf-8")).hexdigest()
+            digest = hashlib.sha256(f"{role}:{task}:{idx}:{chunk}".encode("utf-8")).hexdigest()
             self._collection.upsert(
                 ids=[digest],
                 embeddings=[vector],
@@ -90,8 +95,10 @@ class CrewMemory:
         docs = (result.get("documents") or [[]])[0]
         distances = (result.get("distances") or [[]])[0]
         metadatas = (result.get("metadatas") or [[]])[0]
+        if not (len(docs) == len(distances) == len(metadatas)):
+            return []
         items: list[MemoryResult] = []
-        for doc, distance, meta in zip(docs, distances, metadatas, strict=False):
+        for doc, distance, meta in zip(docs, distances, metadatas, strict=True):
             if not isinstance(doc, str):
                 continue
             score = 1.0 / (1.0 + float(distance)) if isinstance(distance, (float, int)) else 0.0
@@ -108,9 +115,7 @@ class CrewMemory:
         if not text.strip():
             return []
         try:
-            client = self._ollama_client._get_client()  # noqa: SLF001
-            response = client.embeddings(model=self._embedding_model, prompt=text)
-            embedding = response.get("embedding") if isinstance(response, dict) else None
+            embedding = self._ollama_client.embed(text, model=self._embedding_model)
             if isinstance(embedding, list) and all(isinstance(v, (float, int)) for v in embedding):
                 return [float(v) for v in embedding]
         except Exception:

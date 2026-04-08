@@ -65,6 +65,10 @@ class Agent:
             parts.append(self.extra_instructions)
         return "\n\n".join(parts)
 
+    def system_prompt(self) -> str:
+        """Public accessor for the fully composed system prompt."""
+        return self._system_prompt()
+
     def execute(
         self,
         task_description: str,
@@ -94,7 +98,7 @@ class Agent:
         if self.output_schema is not None:
             format_schema = self.output_schema.model_json_schema()
         return self.llm.chat(
-            self._system_prompt(),
+            self.system_prompt(),
             user_message,
             model=self.llm_model,
             options=self.llm_options,

@@ -82,6 +82,11 @@ class DevCrew:
     # Major issues are weighted higher to prioritize blocking defects first.
     MAJOR_ISSUE_WEIGHT = 10
     ISSUE_WEIGHT = 1
+    REVIEW_GRAPH_STEP_MULTIPLIER = 4
+    MAX_SYSTEM_RUNNER_ERROR_CHARS = 2000
+    ARCHITECT_QUORUM_OPTION_A_MODEL = "qwen2.5:7b-instruct"
+    ARCHITECT_QUORUM_OPTION_B_MODEL = "deepseek-coder:6.7b"
+    ARCHITECT_QUORUM_JUDGE_MODEL = "phi3:mini"
 
     def __init__(
         self,
@@ -108,13 +113,14 @@ class DevCrew:
         self.enable_system_runner = enable_system_runner
         self._run_manifest: dict[str, Any] = {}
         self._docker_runner = DockerExecutionRunner() if enable_system_runner else None
+        shared_llm = agents[0].llm if agents else None
         self._memory = (
             CrewMemory(
                 persist_dir=self.output_dir / ".crew_memory",
-                ollama_client=agents[0].llm if agents else None,
+                ollama_client=shared_llm,
                 embedding_model=embedding_model,
             )
-            if enable_vector_memory and agents
+            if enable_vector_memory and shared_llm is not None
             else None
         )
 
@@ -408,7 +414,12 @@ class DevCrew:
                     duration_ms=duration_ms,
                     output=safe_response,
                     error="",
-                    model="quorum[qwen2.5:7b-instruct|deepseek-coder:6.7b]->phi3:mini",
+                    model=(
+                        "quorum["
+                        f"{self.ARCHITECT_QUORUM_OPTION_A_MODEL}|"
+                        f"{self.ARCHITECT_QUORUM_OPTION_B_MODEL}"
+                        f"]->{self.ARCHITECT_QUORUM_JUDGE_MODEL}"
+                    ),
                     retries=agent.llm_retries
                     if agent.llm_retries is not None
                     else int(getattr(agent.llm, "retries", 0) or 0),
@@ -458,7 +469,7 @@ class DevCrew:
         user_parts.append("Return JSON only that matches the provided schema.")
         user_message = "\n\n---\n\n".join(user_parts)
         schema = ArchitectHandoffSchema.model_json_schema()
-        system_prompt = agent._system_prompt()  # noqa: SLF001
+        system_prompt = agent.system_prompt()
 
         def _candidate(model_name: str) -> str:
             return agent.llm.chat(
@@ -472,8 +483,8 @@ class DevCrew:
             )
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            future_a = executor.submit(_candidate, "qwen2.5:7b-instruct")
-            future_b = executor.submit(_candidate, "deepseek-coder:6.7b")
+            future_a = executor.submit(_candidate, self.ARCHITECT_QUORUM_OPTION_A_MODEL)
+            future_b = executor.submit(_candidate, self.ARCHITECT_QUORUM_OPTION_B_MODEL)
             option_a = future_a.result()
             option_b = future_b.result()
 
@@ -485,7 +496,7 @@ class DevCrew:
         judged = agent.llm.chat(
             "Return JSON only according to the judge schema.",
             judge_prompt,
-            model="phi3:mini",
+            model=self.ARCHITECT_QUORUM_JUDGE_MODEL,
             format_schema=QuorumJudgeSchema.model_json_schema(),
             options={"temperature": 0.1, "num_predict": 1536},
             retries_override=agent.llm_retries,
@@ -612,7 +623,12 @@ class DevCrew:
         graph.add_node("review", _review_node, router=_review_router)
         graph.add_node("fix", _fix_node, router=_fix_router)
         graph.set_start("review")
-        graph.run(state, max_steps=max(10, (self.max_fix_iterations + 1) * 4))
+        graph.run(
+            state,
+            max_steps=max(
+                10, (self.max_fix_iterations + 1) * self.REVIEW_GRAPH_STEP_MULTIPLIER
+            ),
+        )
 
     def _select_fix_role(self, issues: list[str], implementations: dict[str, Agent]) -> str | None:
         if not issues:
@@ -646,7 +662,15 @@ class DevCrew:
         if result.skipped or result.ok:
             return None
         details = result.stderr.strip() or result.stdout.strip()
-        clipped = details[:2000] if details else "Unknown execution failure."
+        if not details:
+            clipped = "Unknown execution failure."
+        elif len(details) > self.MAX_SYSTEM_RUNNER_ERROR_CHARS:
+            clipped = (
+                details[: self.MAX_SYSTEM_RUNNER_ERROR_CHARS]
+                + "\n...[truncated by system runner]..."
+            )
+        else:
+            clipped = details
         return f"[critical] System Runner pytest failure: {clipped}"
 
     @staticmethod

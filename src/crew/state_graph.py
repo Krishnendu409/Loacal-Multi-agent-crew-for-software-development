@@ -10,6 +10,8 @@ RouterFn = Callable[[dict[str, Any]], str | None]
 
 
 class StateGraph:
+    DEFAULT_MAX_STEPS = 200
+
     def __init__(self) -> None:
         self._nodes: dict[str, NodeFn] = {}
         self._routers: dict[str, RouterFn] = {}
@@ -25,7 +27,7 @@ class StateGraph:
             raise ValueError(f"Unknown start node: {name}")
         self._start = name
 
-    def run(self, state: dict[str, Any], *, max_steps: int = 200) -> dict[str, Any]:
+    def run(self, state: dict[str, Any], *, max_steps: int = DEFAULT_MAX_STEPS) -> dict[str, Any]:
         if self._start is None:
             raise ValueError("StateGraph start node is not set.")
         current: str | None = self._start

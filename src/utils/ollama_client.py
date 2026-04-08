@@ -133,6 +133,17 @@ class OllamaClient:
         error_text = "; ".join(errors) if errors else "unknown error"
         raise RuntimeError(f"Ollama chat failed across model candidates: {error_text}")
 
+    def embed(self, text: str, *, model: str = "nomic-embed-text") -> list[float]:
+        """Create an embedding vector for *text* using Ollama embeddings API."""
+        if not text.strip():
+            return []
+        client = self._get_client()
+        response = client.embeddings(model=model, prompt=text)
+        embedding = response.get("embedding") if isinstance(response, dict) else None
+        if isinstance(embedding, list) and all(isinstance(v, (float, int)) for v in embedding):
+            return [float(v) for v in embedding]
+        return []
+
     @staticmethod
     def _options_signature(options: dict[str, Any]) -> str:
         if not options:
