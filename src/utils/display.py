@@ -91,8 +91,7 @@ def print_project_start(project_name: str, model: str) -> None:
     """Announce a new project run."""
     console.print(
         Panel(
-            f"[bold]Project:[/bold] {project_name}\n"
-            f"[bold]Model  :[/bold] {model}",
+            f"[bold]Project:[/bold] {project_name}\n[bold]Model  :[/bold] {model}",
             title="[bold green]Starting new project[/bold green]",
             style="green",
         )
@@ -141,7 +140,9 @@ def print_handoff(from_role: str, to_role: str) -> None:
 
 def print_final_summary(outputs: dict[str, str]) -> None:
     """Print a compact table-like summary of all agent outputs."""
-    console.print(Rule("[bold green]✅  All agents have completed their work[/bold green]", style="green"))
+    console.print(
+        Rule("[bold green]✅  All agents have completed their work[/bold green]", style="green")
+    )
     console.print()
     for role, content in outputs.items():
         colour = _colour_for(role)

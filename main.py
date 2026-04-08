@@ -113,9 +113,7 @@ def run(
 
     cfg = load_config(config)
     allowed_models = {
-        m.strip()
-        for m in cfg["llm"].get("allowed_models", [])
-        if isinstance(m, str) and m.strip()
+        m.strip() for m in cfg["llm"].get("allowed_models", []) if isinstance(m, str) and m.strip()
     }
 
     # --- Resolve model -------------------------------------------------
@@ -175,9 +173,7 @@ def run(
         skills_config=cfg.get("skills", {}),
     )
     if not agents:
-        display.print_error(
-            "No agents are enabled.  Check the 'agents' section in config.yaml."
-        )
+        display.print_error("No agents are enabled.  Check the 'agents' section in config.yaml.")
         raise typer.Exit(code=1)
 
     # --- Run crew -----------------------------------------------------
@@ -187,9 +183,7 @@ def run(
         save_individual=cfg["output"]["save_individual_responses"],
         save_report=cfg["output"]["save_final_report"],
         max_fix_iterations=int(cfg.get("crew", {}).get("max_fix_iterations", 1)),
-        stop_on_no_major_issues=bool(
-            cfg.get("crew", {}).get("stop_on_no_major_issues", True)
-        ),
+        stop_on_no_major_issues=bool(cfg.get("crew", {}).get("stop_on_no_major_issues", True)),
         blocking_severities=tuple(
             cfg.get("crew", {}).get("blocking_severities", ["critical", "major"])
         ),
@@ -213,8 +207,7 @@ def run(
             if auto_approve_strategy:
                 return True
             console.print(
-                "\n[bold yellow]Strategy phase complete.[/bold yellow] "
-                "Proceed to implementation?"
+                "\n[bold yellow]Strategy phase complete.[/bold yellow] Proceed to implementation?"
             )
             return Confirm.ask("Continue", default=False)
 
@@ -265,7 +258,7 @@ def models() -> None:
 
 @app.command(name="config")
 def show_config(
-    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to config file.")
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to config file."),
 ) -> None:
     """Display the resolved configuration (merged defaults + config.yaml)."""
     cfg = load_config(config)

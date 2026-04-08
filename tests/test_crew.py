@@ -204,13 +204,11 @@ def test_kickoff_runs_backend_fix_pass_when_major_findings(tmp_path):
     for agent in agents:
         if agent.role == "QA Engineer":
             agent.llm.chat.return_value = (
-                "## Must-Address Checklist\n"
-                "- [Major] Add validation for empty payload.\n"
+                "## Must-Address Checklist\n- [Major] Add validation for empty payload.\n"
             )
         elif agent.role == "Code Reviewer":
             agent.llm.chat.return_value = (
-                "## Must-Address Checklist\n"
-                "- [Minor] Improve naming consistency.\n"
+                "## Must-Address Checklist\n- [Minor] Improve naming consistency.\n"
             )
         elif agent.role == "Security Engineer":
             agent.llm.chat.return_value = (
