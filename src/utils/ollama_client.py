@@ -12,6 +12,8 @@ import time
 from collections import OrderedDict
 from typing import Any
 
+_TIMEOUT_EXTENSION_SECONDS = 120
+
 
 def _get_ollama():
     """Import ollama lazily so the test suite can mock it easily."""
@@ -68,8 +70,27 @@ class OllamaClient:
 
     @staticmethod
     def _is_timeout_error(exc: Exception) -> bool:
+        if isinstance(exc, TimeoutError):
+            return True
+        for cls in type(exc).__mro__:
+            if "timeout" in cls.__name__.lower():
+                return True
         text = str(exc).lower()
         return "timed out" in text or "timeout" in text
+
+    def _extract_content(self, response: Any) -> str:
+        message = response.get("message", {}) if isinstance(response, dict) else {}
+        content = message.get("content") if isinstance(message, dict) else None
+        if isinstance(content, str):
+            return content
+        raise RuntimeError("Ollama response missing message.content")
+
+    def _store_cache(self, cache_key: tuple[str, str, str, str], content: str) -> None:
+        with self._cache_lock:
+            self._cache[cache_key] = content
+            self._cache.move_to_end(cache_key)
+            while len(self._cache) > self._max_cache_entries:
+                self._cache.popitem(last=False)
 
     def chat(
         self,
@@ -122,20 +143,16 @@ class OllamaClient:
                         options=merged_options or None,
                         format=format_schema or None,
                     )
-                    message = response.get("message", {}) if isinstance(response, dict) else {}
-                    content = message.get("content") if isinstance(message, dict) else None
-                    if isinstance(content, str):
-                        with self._cache_lock:
-                            self._cache[cache_key] = content
-                            self._cache.move_to_end(cache_key)
-                            while len(self._cache) > self._max_cache_entries:
-                                self._cache.popitem(last=False)
-                        return content
-                    raise RuntimeError("Ollama response missing message.content")
+                    content = self._extract_content(response)
+                    self._store_cache(cache_key, content)
+                    return content
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")
                     if self.timeout_seconds and self._is_timeout_error(exc):
-                        extended_timeout = max(self.timeout_seconds * 2, self.timeout_seconds + 120)
+                        extended_timeout = max(
+                            self.timeout_seconds * 2,
+                            self.timeout_seconds + _TIMEOUT_EXTENSION_SECONDS,
+                        )
                         try:
                             response = self._build_client(extended_timeout).chat(
                                 model=candidate,
@@ -143,18 +160,9 @@ class OllamaClient:
                                 options=merged_options or None,
                                 format=format_schema or None,
                             )
-                            message = (
-                                response.get("message", {}) if isinstance(response, dict) else {}
-                            )
-                            content = message.get("content") if isinstance(message, dict) else None
-                            if isinstance(content, str):
-                                with self._cache_lock:
-                                    self._cache[cache_key] = content
-                                    self._cache.move_to_end(cache_key)
-                                    while len(self._cache) > self._max_cache_entries:
-                                        self._cache.popitem(last=False)
-                                return content
-                            raise RuntimeError("Ollama response missing message.content")
+                            content = self._extract_content(response)
+                            self._store_cache(cache_key, content)
+                            return content
                         except Exception as timeout_retry_exc:  # noqa: BLE001
                             errors.append(
                                 f"{candidate} (attempt {attempt}/{attempts}, "
