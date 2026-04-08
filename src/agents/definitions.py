@@ -10,6 +10,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from src.agents.base_agent import Agent
+from src.models.schemas import ArchitectHandoffSchema
 from src.skills import SkillMarkdownLoader, resolve_agent_skills
 
 if TYPE_CHECKING:
@@ -238,6 +239,7 @@ def _architect(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Age
             "and always document the reasoning behind your decisions."
         ),
         llm=llm,
+        output_schema=ArchitectHandoffSchema,
         extra_instructions=(
             "Structure your output as:\n"
             "1. **Architecture Overview** – high-level description and diagram (ASCII or textual)\n"

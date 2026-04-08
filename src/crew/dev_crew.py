@@ -9,15 +9,23 @@ import os
 import re
 import tempfile
 import time
-from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
+
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
 from src.agents.base_agent import Agent
+from src.crew.state_graph import StateGraph
+from src.execution.docker_runner import DockerExecutionRunner
+from src.models.schemas import ArchitectHandoffSchema, QuorumJudgeSchema
+from src.protocol.messages import parse_structured_result
 from src.tasks.software_dev_tasks import TASKS, Task
 from src.utils import display
+from src.utils.memory import CrewMemory
 
 # ---------------------------------------------------------------------------
 # Agent execution order (task keys, used for start_from_role logic)
@@ -74,6 +82,11 @@ class DevCrew:
     # Major issues are weighted higher to prioritize blocking defects first.
     MAJOR_ISSUE_WEIGHT = 10
     ISSUE_WEIGHT = 1
+    REVIEW_GRAPH_STEP_MULTIPLIER = 4
+    MAX_SYSTEM_RUNNER_ERROR_CHARS = 2000
+    ARCHITECT_QUORUM_OPTION_A_MODEL = "qwen2.5:7b-instruct"
+    ARCHITECT_QUORUM_OPTION_B_MODEL = "deepseek-coder:6.7b"
+    ARCHITECT_QUORUM_JUDGE_MODEL = "phi3:mini"
 
     def __init__(
         self,
@@ -84,6 +97,10 @@ class DevCrew:
         max_fix_iterations: int = 3,
         stop_on_no_major_issues: bool = True,
         blocking_severities: tuple[str, ...] = ("critical", "major"),
+        enable_architect_quorum: bool = False,
+        enable_system_runner: bool = False,
+        enable_vector_memory: bool = False,
+        embedding_model: str = "nomic-embed-text",
     ) -> None:
         self.agents = agents
         self.output_dir = Path(output_dir)
@@ -92,7 +109,20 @@ class DevCrew:
         self.max_fix_iterations = max(0, max_fix_iterations)
         self.stop_on_no_major_issues = stop_on_no_major_issues
         self.blocking_severities = {s.lower() for s in blocking_severities}
+        self.enable_architect_quorum = enable_architect_quorum
+        self.enable_system_runner = enable_system_runner
         self._run_manifest: dict[str, Any] = {}
+        self._docker_runner = DockerExecutionRunner() if enable_system_runner else None
+        shared_llm = agents[0].llm if agents else None
+        self._memory = (
+            CrewMemory(
+                persist_dir=self.output_dir / ".crew_memory",
+                ollama_client=shared_llm,
+                embedding_model=embedding_model,
+            )
+            if enable_vector_memory and shared_llm is not None
+            else None
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -227,100 +257,33 @@ class DevCrew:
             if not self._should_run_role(role, start_order, role_to_key):
                 completed_roles.add(role)
                 continue
-            self._execute_agent(
-                agent=agent,
-                requirements=self._requirements_with_research(requirements, research_context),
-                context_parts=context_parts,
-                outputs=outputs,
-                project_name=project_name,
-            )
+            if role == "Software Architect":
+                self._execute_architect_with_validation(
+                    agent=agent,
+                    requirements=self._requirements_with_research(requirements, research_context),
+                    context_parts=context_parts,
+                    outputs=outputs,
+                    project_name=project_name,
+                )
+            else:
+                self._execute_agent(
+                    agent=agent,
+                    requirements=self._requirements_with_research(requirements, research_context),
+                    context_parts=context_parts,
+                    outputs=outputs,
+                    project_name=project_name,
+                )
             completed_roles.add(role)
 
-        # Phase 3/4: QA + Security + Reviewer findings, then implementation fix pass (bounded)
-        performance_agent = role_to_agent.get("Performance Engineer")
-        qa_agent = role_to_agent.get("QA Engineer")
-        security_agent = role_to_agent.get("Security Engineer")
-        reviewer_agent = role_to_agent.get("Code Reviewer")
-        database_agent = role_to_agent.get("Database Engineer")
-        api_integration_agent = role_to_agent.get("API Integration Engineer")
-        analytics_agent = role_to_agent.get("Data/Analytics Engineer")
-        frontend_agent = role_to_agent.get("Frontend Developer")
-        backend_agent = role_to_agent.get("Backend Developer")
-        implementation_agents = [
-            agent
-            for agent in [
-                frontend_agent,
-                backend_agent,
-                database_agent,
-                api_integration_agent,
-                analytics_agent,
-            ]
-            if agent is not None
-        ]
-        must_address: list[str] = []
-
-        if performance_agent or qa_agent or reviewer_agent or security_agent:
-            for iteration in range(self.max_fix_iterations + 1):
-                # On the last allowed iteration, skip reviews that would produce
-                # findings with no subsequent fix pass – they add noise without
-                # any actionable outcome.
-                is_last_iteration = iteration >= self.max_fix_iterations
-                can_apply_fix = bool(implementation_agents) and not is_last_iteration
-                if is_last_iteration and not implementation_agents:
-                    break
-
-                for review_agent in [performance_agent, qa_agent, security_agent, reviewer_agent]:
-                    if review_agent is None:
-                        continue
-                    if not self._should_run_role(review_agent.role, start_order, role_to_key):
-                        completed_roles.add(review_agent.role)
-                        continue
-                    self._execute_agent(
-                        agent=review_agent,
-                        requirements=self._requirements_with_research(
-                            requirements, research_context
-                        ),
-                        context_parts=context_parts,
-                        outputs=outputs,
-                        project_name=project_name,
-                        must_address=must_address if must_address else None,
-                    )
-                    completed_roles.add(review_agent.role)
-
-                combined_issues = self._extract_issues(
-                    outputs, [performance_agent, qa_agent, security_agent, reviewer_agent]
-                )
-                major_issues = [i for i in combined_issues if self._is_major(i)]
-
-                if not can_apply_fix:
-                    break
-
-                if self.stop_on_no_major_issues and not major_issues:
-                    break
-
-                must_address = major_issues
-                fix_task = self._render_fix_task(
-                    requirements=requirements,
-                    iteration=iteration + 1,
-                    reviewer_roles=[
-                        agent.role
-                        for agent in [performance_agent, security_agent, qa_agent, reviewer_agent]
-                        if agent is not None
-                    ],
-                )
-                for implementation_agent in implementation_agents:
-                    self._execute_agent(
-                        agent=implementation_agent,
-                        requirements=self._requirements_with_research(
-                            requirements, research_context
-                        ),
-                        context_parts=context_parts,
-                        outputs=outputs,
-                        project_name=project_name,
-                        task_description=fix_task,
-                        must_address=must_address,
-                    )
-                    completed_roles.add(implementation_agent.role)
+        self._run_review_graph(
+            role_to_agent=role_to_agent,
+            requirements=self._requirements_with_research(requirements, research_context),
+            context_parts=context_parts,
+            outputs=outputs,
+            project_name=project_name,
+            start_order=start_order,
+            role_to_key=role_to_key,
+        )
 
         executed_roles = set(outputs.keys())
         for agent in self.agents:
@@ -371,6 +334,17 @@ class DevCrew:
             task_description = task.render(requirements=requirements)
         display.print_agent_start(agent.role, task.title)
         context = "\n\n".join(context_parts) if context_parts else ""
+        if self._memory and self._memory.enabled:
+            recalls = self._memory.search(query=f"{agent.role}: {task_description}", limit=3)
+            if recalls:
+                recalled = "\n".join(
+                    f"- ({item.metadata.get('role', 'unknown')}) {item.text}" for item in recalls
+                )
+                context = (
+                    f"{context}\n\n## Retrieved Project Memory (Top 3)\n\n{recalled}".strip()
+                    if context
+                    else f"## Retrieved Project Memory (Top 3)\n\n{recalled}"
+                )
         started = time.perf_counter()
         status = "success"
         error_text = ""
@@ -391,6 +365,8 @@ class DevCrew:
         safe_response = _sanitize_agent_output(response)
         outputs[agent.role] = safe_response
         context_parts.append(self._format_context_entry(agent.role, safe_response))
+        if self._memory and self._memory.enabled:
+            self._memory.add_artifact(role=agent.role, task=task.title, content=safe_response)
         self._record_manifest_role(
             role=agent.role,
             status=status,
@@ -406,6 +382,312 @@ class DevCrew:
         if self.save_individual:
             self._save_response(project_name, agent.role, safe_response)
         return safe_response
+
+    def _execute_architect_with_validation(
+        self,
+        *,
+        agent: Agent,
+        requirements: str,
+        context_parts: list[str],
+        outputs: dict[str, str],
+        project_name: str,
+    ) -> str:
+        max_attempts = max(1, self.max_fix_iterations + 1)
+        validation_feedback: list[str] = []
+        for attempt in range(1, max_attempts + 1):
+            if self.enable_architect_quorum:
+                task = self._get_task(agent)
+                display.print_agent_start(agent.role, task.title)
+                started = time.perf_counter()
+                response = self._execute_architect_quorum(
+                    agent=agent,
+                    requirements=requirements,
+                    context_parts=context_parts,
+                )
+                duration_ms = int((time.perf_counter() - started) * 1000)
+                safe_response = _sanitize_agent_output(response)
+                outputs[agent.role] = safe_response
+                context_parts.append(self._format_context_entry(agent.role, safe_response))
+                self._record_manifest_role(
+                    role=agent.role,
+                    status="success",
+                    duration_ms=duration_ms,
+                    output=safe_response,
+                    error="",
+                    model=(
+                        "quorum["
+                        f"{self.ARCHITECT_QUORUM_OPTION_A_MODEL}|"
+                        f"{self.ARCHITECT_QUORUM_OPTION_B_MODEL}"
+                        f"]->{self.ARCHITECT_QUORUM_JUDGE_MODEL}"
+                    ),
+                    retries=agent.llm_retries
+                    if agent.llm_retries is not None
+                    else int(getattr(agent.llm, "retries", 0) or 0),
+                )
+                display.print_agent_response(agent.role, safe_response)
+                if self.save_individual:
+                    self._save_response(project_name, agent.role, safe_response)
+            else:
+                response = self._execute_agent(
+                    agent=agent,
+                    requirements=requirements,
+                    context_parts=context_parts,
+                    outputs=outputs,
+                    project_name=project_name,
+                    must_address=validation_feedback if validation_feedback else None,
+                )
+                safe_response = response
+
+            try:
+                ArchitectHandoffSchema.model_validate_json(safe_response)
+                return safe_response
+            except ValidationError as exc:
+                validation_feedback = [
+                    "Return strict JSON matching the architect schema.",
+                    f"Validation error: {exc}",
+                ]
+                if attempt >= max_attempts:
+                    raise ValueError(
+                        "Software Architect output failed structured validation after retries."
+                    ) from exc
+                context_parts.append(
+                    "### Validation Feedback\n\nArchitect output failed schema validation. "
+                    "Retry with corrected JSON only."
+                )
+        raise RuntimeError("Architect validation loop terminated unexpectedly.")
+
+    def _execute_architect_quorum(
+        self, *, agent: Agent, requirements: str, context_parts: list[str]
+    ) -> str:
+        context = "\n\n".join(context_parts) if context_parts else ""
+        task = self._get_task(agent).render(requirements=requirements)
+        user_parts = [f"## Your Task\n\n{task}"]
+        if requirements.strip():
+            user_parts.append(f"## Original Stakeholder Requirements\n\n{requirements}")
+        if context.strip():
+            user_parts.append(f"## Context from previous team members\n\n{context}")
+        user_parts.append("Return JSON only that matches the provided schema.")
+        user_message = "\n\n---\n\n".join(user_parts)
+        schema = ArchitectHandoffSchema.model_json_schema()
+        system_prompt = agent.system_prompt()
+
+        def _candidate(model_name: str) -> str:
+            return agent.llm.chat(
+                system_prompt,
+                user_message,
+                model=model_name,
+                options=agent.llm_options,
+                format_schema=schema,
+                fallback_models=agent.llm_fallback_models,
+                retries_override=agent.llm_retries,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_a = executor.submit(_candidate, self.ARCHITECT_QUORUM_OPTION_A_MODEL)
+            future_b = executor.submit(_candidate, self.ARCHITECT_QUORUM_OPTION_B_MODEL)
+            option_a = future_a.result()
+            option_b = future_b.result()
+
+        judge_prompt = (
+            "You are the architecture judge. Compare two architecture JSON options, apply "
+            "compliance/privacy constraints from context, and select A/B or merge.\n\n"
+            f"Option A:\n{option_a}\n\nOption B:\n{option_b}\n"
+        )
+        judged = agent.llm.chat(
+            "Return JSON only according to the judge schema.",
+            judge_prompt,
+            model=self.ARCHITECT_QUORUM_JUDGE_MODEL,
+            format_schema=QuorumJudgeSchema.model_json_schema(),
+            options={"temperature": 0.1, "num_predict": 1536},
+            retries_override=agent.llm_retries,
+        )
+        result = QuorumJudgeSchema.model_validate_json(judged)
+        return result.merged_architecture.model_dump_json(indent=2)
+
+    def _run_review_graph(
+        self,
+        *,
+        role_to_agent: dict[str, Agent],
+        requirements: str,
+        context_parts: list[str],
+        outputs: dict[str, str],
+        project_name: str,
+        start_order: int,
+        role_to_key: dict[str, str],
+    ) -> None:
+        reviewer_roles = [
+            "Performance Engineer",
+            "QA Engineer",
+            "Security Engineer",
+            "Code Reviewer",
+        ]
+        implementation_roles = [
+            "Frontend Developer",
+            "Backend Developer",
+            "Database Engineer",
+            "API Integration Engineer",
+            "Data/Analytics Engineer",
+        ]
+        reviewers = [
+            role_to_agent[role]
+            for role in reviewer_roles
+            if role in role_to_agent and self._should_run_role(role, start_order, role_to_key)
+        ]
+        implementations = {
+            role: role_to_agent[role]
+            for role in implementation_roles
+            if role in role_to_agent and self._should_run_role(role, start_order, role_to_key)
+        }
+        if not reviewers:
+            return
+
+        state: dict[str, Any] = {
+            "requirements": requirements,
+            "current_code": "\n\n".join(
+                outputs.get(role, "") for role in implementation_roles if role in outputs
+            ),
+            "test_results": "",
+            "revision_count": 0,
+            "issues": [],
+            "major_issues": [],
+            "must_address": [],
+            "iteration": 0,
+            "fix_role": None,
+        }
+
+        graph = StateGraph()
+
+        def _review_node(local_state: dict[str, Any]) -> None:
+            must_address = local_state.get("must_address") or None
+            for reviewer in reviewers:
+                self._execute_agent(
+                    agent=reviewer,
+                    requirements=requirements,
+                    context_parts=context_parts,
+                    outputs=outputs,
+                    project_name=project_name,
+                    must_address=must_address,
+                )
+            issues = self._extract_issues(outputs, reviewers)
+            runner_issue = self._run_system_runner(outputs)
+            if runner_issue:
+                issues.append(runner_issue)
+                local_state["test_results"] = runner_issue
+            local_state["issues"] = issues
+            local_state["major_issues"] = [i for i in issues if self._is_major(i)]
+            local_state["fix_role"] = self._select_fix_role(
+                local_state["major_issues"], implementations
+            )
+
+        def _review_router(local_state: dict[str, Any]) -> str | None:
+            if local_state.get("iteration", 0) >= self.max_fix_iterations:
+                return None
+            major = local_state.get("major_issues", [])
+            if self.stop_on_no_major_issues and not major:
+                return None
+            if not major:
+                return None
+            if not local_state.get("fix_role"):
+                return None
+            return "fix"
+
+        def _fix_node(local_state: dict[str, Any]) -> None:
+            role = local_state.get("fix_role")
+            if not isinstance(role, str) or role not in implementations:
+                return
+            implementation = implementations[role]
+            local_state["must_address"] = list(local_state.get("major_issues", []))
+            task = self._render_fix_task(
+                requirements=requirements,
+                iteration=int(local_state.get("iteration", 0)) + 1,
+                reviewer_roles=[r.role for r in reviewers],
+            )
+            self._execute_agent(
+                agent=implementation,
+                requirements=requirements,
+                context_parts=context_parts,
+                outputs=outputs,
+                project_name=project_name,
+                task_description=task,
+                must_address=local_state["must_address"],
+            )
+            local_state["iteration"] = int(local_state.get("iteration", 0)) + 1
+            local_state["revision_count"] = int(local_state.get("revision_count", 0)) + 1
+            local_state["current_code"] = outputs.get(role, "")
+
+        def _fix_router(local_state: dict[str, Any]) -> str | None:
+            if local_state.get("iteration", 0) > self.max_fix_iterations:
+                return None
+            return "review"
+
+        graph.add_node("review", _review_node, router=_review_router)
+        graph.add_node("fix", _fix_node, router=_fix_router)
+        graph.set_start("review")
+        graph.run(
+            state,
+            max_steps=max(
+                10, (self.max_fix_iterations + 1) * self.REVIEW_GRAPH_STEP_MULTIPLIER
+            ),
+        )
+
+    def _select_fix_role(self, issues: list[str], implementations: dict[str, Agent]) -> str | None:
+        if not issues:
+            return None
+        joined = " ".join(issues).lower()
+        if (
+            "database" in joined or "sql" in joined or "schema" in joined
+        ) and "Database Engineer" in implementations:
+            return "Database Engineer"
+        if (
+            "api" in joined or "endpoint" in joined or "integration" in joined
+        ) and "API Integration Engineer" in implementations:
+            return "API Integration Engineer"
+        if (
+            "frontend" in joined or "ui" in joined or "ux" in joined
+        ) and "Frontend Developer" in implementations:
+            return "Frontend Developer"
+        if "Data/Analytics Engineer" in implementations and (
+            "analytics" in joined or "metric" in joined
+        ):
+            return "Data/Analytics Engineer"
+        if "Backend Developer" in implementations:
+            return "Backend Developer"
+        return next(iter(implementations.keys()), None)
+
+    def _run_system_runner(self, outputs: dict[str, str]) -> str | None:
+        if not self._docker_runner:
+            return None
+        generated_files = self._collect_generated_files(outputs)
+        result = self._docker_runner.run_pytest(generated_files)
+        if result.skipped or result.ok:
+            return None
+        details = result.stderr.strip() or result.stdout.strip()
+        if not details:
+            clipped = "Unknown execution failure."
+        elif len(details) > self.MAX_SYSTEM_RUNNER_ERROR_CHARS:
+            clipped = (
+                details[: self.MAX_SYSTEM_RUNNER_ERROR_CHARS]
+                + "\n...[truncated by system runner]..."
+            )
+        else:
+            clipped = details
+        return f"[critical] System Runner pytest failure: {clipped}"
+
+    @staticmethod
+    def _collect_generated_files(outputs: dict[str, str]) -> list[dict[str, str]]:
+        files: list[dict[str, str]] = []
+        for role in ("Backend Developer", "QA Engineer"):
+            text = outputs.get(role)
+            if not text:
+                continue
+            parsed = parse_structured_result(text)
+            for file_obj in parsed.files:
+                path = file_obj.get("path", "")
+                content = file_obj.get("content", "")
+                if not path or not isinstance(content, str):
+                    continue
+                files.append({"path": path, "content": content})
+        return files
 
     @staticmethod
     def _format_context_entry(role: str, response: str) -> str:
@@ -433,7 +715,7 @@ class DevCrew:
                 return True
         return False
 
-    def _extract_issues(self, outputs: dict[str, str], agents: list[Agent | None]) -> list[str]:
+    def _extract_issues(self, outputs: dict[str, str], agents: Sequence[Agent | None]) -> list[str]:
         """Extract issue lines from reviewer agent outputs."""
         issues: list[str] = []
         for agent in agents:

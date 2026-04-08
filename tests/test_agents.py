@@ -11,6 +11,7 @@ import pytest
 
 from src.agents.base_agent import Agent
 from src.agents.definitions import AGENT_ORDER, build_agents, register_agent_role
+from src.models.schemas import ArchitectHandoffSchema
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +288,22 @@ def test_agent_execute_does_not_swallow_type_error():
     agent = Agent(role="Product Manager", goal="Specs", backstory="PM", llm=llm)
     with pytest.raises(TypeError):
         agent.execute("Build feature")
+
+
+def test_agent_execute_passes_format_schema_when_output_schema_set():
+    llm = MagicMock()
+    llm.chat.return_value = "{}"
+    agent = Agent(
+        role="Software Architect",
+        goal="Design architecture",
+        backstory="Architect",
+        llm=llm,
+        output_schema=ArchitectHandoffSchema,
+    )
+    agent.execute("Design system")
+    _, kwargs = llm.chat.call_args
+    assert isinstance(kwargs.get("format_schema"), dict)
+    assert "properties" in kwargs["format_schema"]
 
 
 # ---------------------------------------------------------------------------

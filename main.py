@@ -187,6 +187,10 @@ def run(
         blocking_severities=tuple(
             cfg.get("crew", {}).get("blocking_severities", ["critical", "major"])
         ),
+        enable_architect_quorum=bool(cfg.get("crew", {}).get("enable_architect_quorum", True)),
+        enable_system_runner=bool(cfg.get("crew", {}).get("enable_system_runner", True)),
+        enable_vector_memory=bool(cfg.get("crew", {}).get("enable_vector_memory", True)),
+        embedding_model=str(cfg.get("crew", {}).get("embedding_model", "nomic-embed-text")),
     )
 
     resume_outputs = _load_resume_outputs(resume_run_dir, [a.role for a in agents])

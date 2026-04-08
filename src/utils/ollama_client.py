@@ -46,7 +46,7 @@ class OllamaClient:
         self.timeout_seconds = timeout_seconds
         self._client: Any = None
         self._client_lock = threading.Lock()
-        # cache key: (model, system_prompt, user_message, options_signature)
+        # cache key: (model, system_prompt, user_message, options+format signature)
         self._cache: OrderedDict[tuple[str, str, str, str], str] = OrderedDict()
         self._cache_lock = threading.Lock()
         self._max_cache_entries = max(0, int(max_cache_entries))
@@ -70,6 +70,7 @@ class OllamaClient:
         *,
         model: str | None = None,
         options: dict[str, Any] | None = None,
+        format_schema: dict[str, Any] | None = None,
         fallback_models: list[str] | None = None,
         retries_override: int | None = None,
     ) -> str:
@@ -85,6 +86,7 @@ class OllamaClient:
         if options:
             merged_options.update(options)
         options_signature = self._options_signature(merged_options)
+        format_signature = self._options_signature(format_schema or {})
 
         model_candidates = [model or self.model]
         if fallback_models:
@@ -98,7 +100,7 @@ class OllamaClient:
                 candidate,
                 system_prompt,
                 user_message,
-                options_signature,
+                f"{options_signature}|{format_signature}",
             )
             with self._cache_lock:
                 if cache_key in self._cache:
@@ -110,6 +112,7 @@ class OllamaClient:
                         model=candidate,
                         messages=messages,
                         options=merged_options or None,
+                        format=format_schema or None,
                     )
                     message = response.get("message", {}) if isinstance(response, dict) else {}
                     content = message.get("content") if isinstance(message, dict) else None
@@ -129,6 +132,17 @@ class OllamaClient:
 
         error_text = "; ".join(errors) if errors else "unknown error"
         raise RuntimeError(f"Ollama chat failed across model candidates: {error_text}")
+
+    def embed(self, text: str, *, model: str = "nomic-embed-text") -> list[float]:
+        """Create an embedding vector for *text* using Ollama embeddings API."""
+        if not text.strip():
+            return []
+        client = self._get_client()
+        response = client.embeddings(model=model, prompt=text)
+        embedding = response.get("embedding") if isinstance(response, dict) else None
+        if isinstance(embedding, list) and all(isinstance(v, (float, int)) for v in embedding):
+            return [float(v) for v in embedding]
+        return []
 
     @staticmethod
     def _options_signature(options: dict[str, Any]) -> str:
