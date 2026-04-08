@@ -56,12 +56,20 @@ class OllamaClient:
         if self._client is None:
             with self._client_lock:
                 if self._client is None:
-                    ollama = _get_ollama()
-                    kwargs: dict[str, Any] = {"host": self.base_url}
-                    if self.timeout_seconds:
-                        kwargs["timeout"] = self.timeout_seconds
-                    self._client = ollama.Client(**kwargs)
+                    self._client = self._build_client(self.timeout_seconds)
         return self._client
+
+    def _build_client(self, timeout_seconds: int | None) -> Any:
+        ollama = _get_ollama()
+        kwargs: dict[str, Any] = {"host": self.base_url}
+        if timeout_seconds:
+            kwargs["timeout"] = timeout_seconds
+        return ollama.Client(**kwargs)
+
+    @staticmethod
+    def _is_timeout_error(exc: Exception) -> bool:
+        text = str(exc).lower()
+        return "timed out" in text or "timeout" in text
 
     def chat(
         self,
@@ -126,6 +134,32 @@ class OllamaClient:
                     raise RuntimeError("Ollama response missing message.content")
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")
+                    if self.timeout_seconds and self._is_timeout_error(exc):
+                        extended_timeout = max(self.timeout_seconds * 2, self.timeout_seconds + 120)
+                        try:
+                            response = self._build_client(extended_timeout).chat(
+                                model=candidate,
+                                messages=messages,
+                                options=merged_options or None,
+                                format=format_schema or None,
+                            )
+                            message = (
+                                response.get("message", {}) if isinstance(response, dict) else {}
+                            )
+                            content = message.get("content") if isinstance(message, dict) else None
+                            if isinstance(content, str):
+                                with self._cache_lock:
+                                    self._cache[cache_key] = content
+                                    self._cache.move_to_end(cache_key)
+                                    while len(self._cache) > self._max_cache_entries:
+                                        self._cache.popitem(last=False)
+                                return content
+                            raise RuntimeError("Ollama response missing message.content")
+                        except Exception as timeout_retry_exc:  # noqa: BLE001
+                            errors.append(
+                                f"{candidate} (attempt {attempt}/{attempts}, "
+                                f"extended-timeout={extended_timeout}s): {timeout_retry_exc}"
+                            )
                     if attempt < attempts:
                         time.sleep(0.2)
                     continue

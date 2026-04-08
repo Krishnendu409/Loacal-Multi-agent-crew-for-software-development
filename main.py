@@ -300,6 +300,12 @@ def _hint_common_errors(exc: Exception) -> None:
             "\n[yellow]💡 Tip:[/yellow] Could not reach the Ollama daemon.  "
             "Start it with:  [bold]ollama serve[/bold]"
         )
+    elif "timed out" in msg or "timeout" in msg:
+        console.print(
+            "\n[yellow]💡 Tip:[/yellow] Model inference timed out. Increase "
+            "[bold]llm.timeout_seconds[/bold] in config.yaml or set "
+            "[bold]OLLAMA_TIMEOUT[/bold] (for example: 600)."
+        )
     elif "model" in msg and ("not found" in msg or "pull" in msg):
         console.print(
             "\n[yellow]💡 Tip:[/yellow] The model was not found locally.  "

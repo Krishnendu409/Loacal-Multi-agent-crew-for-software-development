@@ -45,6 +45,7 @@ def test_deep_merge_does_not_mutate_base():
 def test_load_config_returns_defaults_when_no_file(tmp_path):
     cfg = load_config(tmp_path / "nonexistent.yaml")
     assert cfg["llm"]["model"] == "qwen2.5:7b-instruct"
+    assert cfg["llm"]["timeout_seconds"] == 600
     assert cfg["llm"]["routing"]["customer_support_feedback_analyst"] == "qwen2.5:7b-instruct"
     assert cfg["llm"]["routing"]["compliance_privacy_specialist"] == "phi3:mini"
     assert cfg["llm"]["routing"]["ui_ux_designer"] == "qwen2.5:7b-instruct"
