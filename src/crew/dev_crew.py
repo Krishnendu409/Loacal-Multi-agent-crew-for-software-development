@@ -43,13 +43,16 @@ _ROLE_TO_TASK_KEY: dict[str, str] = {
 
 
 class DevCrew:
+    MAJOR_ISSUE_WEIGHT = 10
+    ISSUE_WEIGHT = 1
+
     def __init__(
         self,
         agents: list[Agent],
         output_dir: str | Path = "output",
         save_individual: bool = True,
         save_report: bool = True,
-        max_fix_iterations: int = 2,
+        max_fix_iterations: int = 3,
         stop_on_no_major_issues: bool = True,
     ) -> None:
         self.agents = agents
@@ -215,7 +218,9 @@ class DevCrew:
 
             combined_issues = list(dict.fromkeys([*review_findings, *self._execution_issues(execution_result)]))
             major_issues = [i for i in combined_issues if self._is_major(i)]
-            score = len(major_issues) * 10 + len(combined_issues)
+            score = (len(major_issues) * self.MAJOR_ISSUE_WEIGHT) + (
+                len(combined_issues) * self.ISSUE_WEIGHT
+            )
 
             if score < best_score:
                 best_score = score
@@ -275,7 +280,13 @@ class DevCrew:
     def _execute_project_checks(self, runner: ExecutionRunner, project_dir: Path) -> ExecutionResult:
         tests_dir = project_dir / "tests"
         if not tests_dir.exists():
-            return ExecutionResult(command=["python", "-m", "pytest", "tests", "-q"], returncode=0, stdout="", stderr="", timed_out=False)
+            return ExecutionResult(
+                command=["python", "-m", "pytest", "tests", "-q"],
+                returncode=2,
+                stdout="",
+                stderr="Tests directory missing; checks skipped.",
+                timed_out=False,
+            )
         return runner.run(["python", "-m", "pytest", "tests", "-q"], cwd=project_dir)
 
     def _compose_input_payload(

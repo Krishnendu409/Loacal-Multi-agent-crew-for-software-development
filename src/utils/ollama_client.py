@@ -41,6 +41,8 @@ class OllamaClient:
         self.timeout_seconds = timeout_seconds
         self._client = None
         self._cache: dict[tuple[str, str, str], str] = {}
+        self._cache_order: list[tuple[str, str, str]] = []
+        self._cache_limit = 128
 
     def _build_client(self):
         if self._client is not None:
@@ -96,6 +98,10 @@ class OllamaClient:
                     )
                     content = response["message"]["content"]
                     self._cache[cache_key] = content
+                    self._cache_order.append(cache_key)
+                    if len(self._cache_order) > self._cache_limit:
+                        oldest = self._cache_order.pop(0)
+                        self._cache.pop(oldest, None)
                     return content
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")

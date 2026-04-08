@@ -62,9 +62,13 @@ class MemoryStore:
         self._write_list(self.paths.best_solutions, items)
 
     def recent_errors(self, limit: int = 5) -> list[dict[str, Any]]:
+        if limit <= 0:
+            return []
         items = self._read_list(self.paths.errors)
-        return items[-max(0, limit) :]
+        return items[-limit:]
 
     def recent_history(self, limit: int = 5) -> list[dict[str, Any]]:
+        if limit <= 0:
+            return []
         items = self._read_list(self.paths.history)
-        return items[-max(0, limit) :]
+        return items[-limit:]

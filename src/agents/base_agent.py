@@ -93,7 +93,7 @@ class Agent:
             "Please provide your best professional response now."
         )
         user_message_parts.append(
-            "Return only JSON. Do not include markdown fences or any extra prose."
+            "Return JSON only. If you must use markdown, include exactly one ```json fenced block and no extra prose."
         )
         user_message = "\n\n---\n\n".join(user_message_parts)
         return self.llm.chat(

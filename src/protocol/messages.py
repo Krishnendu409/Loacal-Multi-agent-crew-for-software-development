@@ -36,6 +36,7 @@ class AgentResult:
 
 
 _JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
+MAX_SUMMARY_LENGTH = 3000
 
 
 def parse_structured_result(raw_text: str) -> AgentResult:
@@ -98,7 +99,7 @@ def _extract_json_payload(raw_text: str) -> dict[str, Any]:
         "steps": [],
         "issues": ["Model output was not valid structured JSON."],
         "status": "failure",
-        "summary": raw_text[:3000],
+        "summary": raw_text[:MAX_SUMMARY_LENGTH],
     }
 
 

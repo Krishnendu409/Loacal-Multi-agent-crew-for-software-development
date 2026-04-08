@@ -34,7 +34,7 @@ class Sandbox:
 
     def validate_working_dir(self, working_dir: Path) -> Path:
         resolved = working_dir.resolve()
-        if self.workspace not in resolved.parents and resolved != self.workspace:
+        if self.workspace not in [resolved, *resolved.parents]:
             raise SandboxError(
                 f"Working directory '{resolved}' must be inside workspace '{self.workspace}'."
             )
