@@ -20,7 +20,11 @@ from src.agents.base_agent import Agent
 from src.crew.state_graph import StateGraph
 from src.execution.docker_runner import DockerExecutionRunner
 from src.models.schemas import ArchitectHandoffSchema, QuorumJudgeSchema
-from src.protocol.messages import extract_fenced_files, parse_structured_result
+from src.protocol.messages import (
+    extract_context_summary,
+    extract_fenced_files,
+    parse_structured_result,
+)
 from src.tasks.software_dev_tasks import TASKS, Task
 from src.utils import display
 from src.utils.memory import CrewMemory
@@ -77,6 +81,77 @@ _ROLE_TO_TASK_KEY: dict[str, str] = {
     "DevOps Engineer": "devops_engineer",
 }
 
+# ---------------------------------------------------------------------------
+# Selective context sources per role.
+# Each role only receives context from the most relevant predecessor roles,
+# preventing context-window overflow on small models (e.g. phi3:mini).
+# Roles absent from this map fall back to the full accumulated context.
+# ---------------------------------------------------------------------------
+
+_ROLE_CONTEXT_SOURCES: dict[str, list[str]] = {
+    # Strategy phase: cascade only from immediate predecessor(s)
+    "CEO Planner": [],
+    "Market Researcher": ["CEO Planner"],
+    "Customer Support/Feedback Analyst": ["CEO Planner", "Market Researcher"],
+    "Product Manager": [
+        "CEO Planner",
+        "Market Researcher",
+        "Customer Support/Feedback Analyst",
+    ],
+    "Compliance & Privacy Specialist": ["CEO Planner", "Product Manager"],
+    # Architecture & design: decisions from strategy + adjacent peers
+    "Software Architect": ["Product Manager", "Compliance & Privacy Specialist"],
+    "UI/UX Designer": ["Software Architect", "Product Manager"],
+    "Database Engineer": ["Software Architect", "Product Manager"],
+    "API Integration Engineer": ["Software Architect", "Database Engineer", "Product Manager"],
+    # Implementation: architecture decisions + own-domain predecessors only
+    "Backend Developer": [
+        "Software Architect",
+        "Database Engineer",
+        "API Integration Engineer",
+        "Product Manager",
+    ],
+    "Frontend Developer": [
+        "Software Architect",
+        "UI/UX Designer",
+        "API Integration Engineer",
+        "Product Manager",
+    ],
+    "Data/Analytics Engineer": [
+        "Software Architect",
+        "Database Engineer",
+        "Backend Developer",
+    ],
+    # Review/QA: only the implementations they are reviewing
+    "Performance Engineer": ["Backend Developer", "Frontend Developer"],
+    "Security Engineer": [
+        "Backend Developer",
+        "Frontend Developer",
+        "API Integration Engineer",
+    ],
+    "QA Engineer": ["Backend Developer", "Frontend Developer"],
+    "Code Reviewer": [
+        "Backend Developer",
+        "Frontend Developer",
+        "QA Engineer",
+        "Security Engineer",
+    ],
+    # Operations / docs: implementations + review summaries
+    "DevOps Engineer": ["Software Architect", "Backend Developer", "Frontend Developer"],
+    "Technical Writer": ["Backend Developer", "Frontend Developer", "DevOps Engineer"],
+    "SRE / Reliability Engineer": [
+        "Software Architect",
+        "Backend Developer",
+        "DevOps Engineer",
+    ],
+    "Release Manager": [
+        "Code Reviewer",
+        "QA Engineer",
+        "DevOps Engineer",
+        "Technical Writer",
+    ],
+}
+
 
 class DevCrew:
     # Major issues are weighted higher to prioritize blocking defects first.
@@ -87,6 +162,11 @@ class DevCrew:
     ARCHITECT_QUORUM_OPTION_A_MODEL = "qwen2.5:7b-instruct"
     ARCHITECT_QUORUM_OPTION_B_MODEL = "deepseek-coder:6.7b"
     ARCHITECT_QUORUM_JUDGE_MODEL = "phi3:mini"
+    # Maximum characters of accumulated context passed to any single agent.
+    # Keeping this tight prevents context-window overflow on small models.
+    MAX_CONTEXT_CHARS = 3200
+    # Characters reserved per context entry summary before hard-capping.
+    CONTEXT_ENTRY_CHARS = 400
 
     def __init__(
         self,
@@ -334,7 +414,9 @@ class DevCrew:
         if task_description is None:
             task_description = task.render(requirements=requirements)
         display.print_agent_start(agent.role, task.title)
-        context = "\n\n".join(context_parts) if context_parts else ""
+        # Build selective, size-capped context from the roles this agent actually
+        # needs.  This prevents context-window overflow on small models.
+        context = self._build_context_for_role(agent.role, outputs)
         if self._memory and self._memory.enabled:
             recalls = self._memory.search(query=f"{agent.role}: {task_description}", limit=3)
             if recalls:
@@ -366,6 +448,7 @@ class DevCrew:
             duration_ms = int((time.perf_counter() - started) * 1000)
         safe_response = _sanitize_agent_output(response)
         outputs[agent.role] = safe_response
+        # Keep context_parts updated for callers that still use it (e.g. fix graph)
         context_parts.append(self._format_context_entry(agent.role, safe_response))
         self._persist_generated_files(project_name, agent.role, safe_response)
         if self._memory and self._memory.enabled:
@@ -698,8 +781,47 @@ class DevCrew:
 
     @staticmethod
     def _format_context_entry(role: str, response: str) -> str:
-        summary = DevCrew._summarize_response(response)
+        """Build a compact context entry from a raw agent response.
+
+        Uses the structured ``summary`` and ``handoff_notes`` fields from the
+        JSON output so downstream agents receive focused, human-readable context
+        rather than a truncated JSON dump.
+        """
+        summary = extract_context_summary(response, max_chars=DevCrew.CONTEXT_ENTRY_CHARS)
         return f"### {role}\n\n{summary}"
+
+    def _build_context_for_role(self, role: str, outputs: dict[str, str]) -> str:
+        """Return a context string scoped to the roles most relevant for *role*.
+
+        Looks up ``_ROLE_CONTEXT_SOURCES`` for the selective list of prior roles
+        whose output matters for this agent.  Each entry is summarised using the
+        structured JSON fields (summary + handoff_notes) and the total is capped
+        at ``MAX_CONTEXT_CHARS`` so small-context-window models do not overflow.
+        """
+        source_roles = _ROLE_CONTEXT_SOURCES.get(role)
+        if source_roles is None:
+            # Fallback: use all accumulated outputs up to the cap
+            entries = [
+                self._format_context_entry(r, text) for r, text in outputs.items() if r != role
+            ]
+        else:
+            entries = [
+                self._format_context_entry(r, outputs[r]) for r in source_roles if r in outputs
+            ]
+
+        if not entries:
+            return ""
+
+        # Hard-cap: drop earliest entries if total exceeds MAX_CONTEXT_CHARS
+        total = 0
+        kept: list[str] = []
+        for entry in reversed(entries):
+            if total + len(entry) > self.MAX_CONTEXT_CHARS:
+                break
+            kept.append(entry)
+            total += len(entry)
+        kept.reverse()
+        return "\n\n".join(kept)
 
     def _save_response(self, project_name: str, role: str, content: str) -> None:
         run_dir = self._get_run_dir(project_name)

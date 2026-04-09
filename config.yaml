@@ -47,8 +47,33 @@ llm:
     devops_engineer: phi3:mini
   # Fallbacks used if the primary model fails for a role
   fallbacks: {}
-  # Optional per-role generation tuning
-  role_options: {}
+  # Per-role generation tuning: implementation roles get higher num_predict so
+  # code files are not truncated mid-generation.
+  role_options:
+    database_engineer:
+      num_predict: 2048
+      temperature: 0.1
+    api_integration_engineer:
+      num_predict: 2048
+      temperature: 0.1
+    backend_developer:
+      num_predict: 3000
+      temperature: 0.1
+    frontend_developer:
+      num_predict: 3000
+      temperature: 0.1
+    qa_engineer:
+      num_predict: 2048
+      temperature: 0.1
+    devops_engineer:
+      num_predict: 2048
+      temperature: 0.1
+    technical_writer:
+      num_predict: 2048
+      temperature: 0.2
+    data_analytics_engineer:
+      num_predict: 2048
+      temperature: 0.1
   # Optional retry strategy by role (overrides llm.retries)
   role_retries: {}
 

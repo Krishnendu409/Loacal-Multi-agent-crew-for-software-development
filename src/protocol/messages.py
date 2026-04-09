@@ -80,6 +80,48 @@ def extract_fenced_files(text: str) -> list[dict[str, str]]:
     return results
 
 
+def extract_context_summary(raw_text: str, max_chars: int = 400) -> str:
+    """Return a concise, readable context string from an agent's raw output.
+
+    Pulls the ``summary`` and the beginning of ``handoff_notes`` out of the
+    JSON blob so downstream agents receive focused, structured context rather
+    than a truncated JSON string.  Falls back to plain character truncation
+    for non-JSON responses.
+    """
+    stripped = raw_text.strip()
+    payload: dict[str, Any] = {}
+    if stripped.startswith("{"):
+        try:
+            parsed = json.loads(stripped)
+            if isinstance(parsed, dict):
+                payload = parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+        if not payload:
+            payload = _extract_json_payload(stripped)
+
+    summary = str(payload.get("summary", "")).strip()
+    handoff = str(payload.get("handoff_notes", "")).strip()
+
+    parts: list[str] = []
+    if summary:
+        parts.append(summary)
+    if handoff:
+        # Take the first part of handoff_notes as context for downstream agents
+        budget = max_chars - len(summary) - 2
+        if budget > 60:
+            parts.append(handoff[:budget])
+        elif not summary:
+            parts.append(handoff[:max_chars])
+
+    if parts:
+        return " | ".join(parts)
+
+    # Fallback: plain text summary
+    cleaned = " ".join(raw_text.split())
+    return cleaned[:max_chars]
+
+
 def parse_structured_result(raw_text: str) -> AgentResult:
     """Parse a structured JSON response from model output with safe fallback."""
     payload = _extract_json_payload(raw_text)
