@@ -898,8 +898,11 @@ class DevCrew:
         if len(text) <= max_chars:
             return text
         separator = " […] "
-        # Allocate roughly 70% to the head, 30% to the tail.
         budget = max_chars - len(separator)
+        if budget <= 0:
+            # max_chars too small to fit any meaningful content plus separator
+            return text[:max_chars]
+        # Allocate roughly 70% to the head, 30% to the tail.
         head_chars = int(budget * 0.7)
         tail_chars = budget - head_chars
         return text[:head_chars] + separator + text[-tail_chars:]

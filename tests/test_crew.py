@@ -400,6 +400,13 @@ def test_summarize_response_does_not_truncate_midword():
     assert "[…]" in result
 
 
+def test_summarize_response_very_small_max_chars_does_not_crash():
+    """When max_chars is smaller than the separator length, must not crash."""
+    result = _summarize_response("hello world this is long text", max_chars=3)
+    assert isinstance(result, str)
+    assert len(result) <= 3
+
+
 # ---------------------------------------------------------------------------
 # P1 #9: loop control – no review runs with no fix available
 # ---------------------------------------------------------------------------
@@ -621,9 +628,12 @@ def test_execute_agent_persists_raw_output(tmp_path):
     agent = Agent(role="Product Manager", goal="Goal", backstory="B", llm=llm)
     crew = DevCrew(agents=[agent], output_dir=tmp_path, save_individual=False, save_report=False)
     crew.kickoff("Build app", project_name="raw_persist")
-    raw_files = list(tmp_path.rglob("product_manager_raw*.txt"))
-    assert len(raw_files) >= 1
-    assert "Raw model response for persistence test" in raw_files[0].read_text()
+    # Exact expected filename: _safe_filename("Product Manager") + "_raw.txt"
+    run_dirs = [p for p in tmp_path.iterdir() if p.is_dir() and p.name.startswith("raw_persist_")]
+    assert len(run_dirs) == 1
+    raw_file = run_dirs[0] / "product_manager_raw.txt"
+    assert raw_file.exists(), f"Expected raw output file at {raw_file}"
+    assert "Raw model response for persistence test" in raw_file.read_text()
 
 
 # ---------------------------------------------------------------------------

@@ -176,19 +176,18 @@ def is_likely_truncated(raw_text: str) -> bool:
     Heuristics used:
     - Text starts with ``{`` (suggesting JSON output) but the last non-whitespace
       character is not ``}`` — i.e. the closing brace is missing.
-    - OR the text is non-empty but ``json.loads`` raises a ``JSONDecodeError``.
+    - OR the text starts with ``{`` but ``json.loads`` raises a ``JSONDecodeError``.
     """
     stripped = raw_text.strip()
-    if not stripped:
+    if not stripped or not stripped.startswith("{"):
         return False
-    if stripped.startswith("{") and not stripped.endswith("}"):
+    # Starts with '{': check for missing closing brace or failed decode
+    if not stripped.endswith("}"):
         return True
     try:
         json.loads(stripped)
     except (json.JSONDecodeError, ValueError):
-        # Starts with { but decode failed — very likely truncated
-        if stripped.startswith("{"):
-            return True
+        return True
     return False
 
 
