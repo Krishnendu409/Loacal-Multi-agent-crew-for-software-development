@@ -719,13 +719,34 @@ class DevCrew:
             if not rel_path or not isinstance(file_content, str):
                 continue
             rel = Path(rel_path)
-            if rel.is_absolute() or ".." in rel.parts:
+            if rel.is_absolute():
                 logger.warning("Skipped unsafe generated file path for role %s: %s", role, rel_path)
                 continue
-            target = (generated_root / rel).resolve()
-            if generated_root.resolve() not in target.parents:
+            generated_root_resolved = generated_root.resolve()
+            target = (generated_root_resolved / rel).resolve()
+            if not target.is_relative_to(generated_root_resolved):
                 logger.warning(
                     "Skipped out-of-root generated file path for role %s: %s", role, rel_path
+                )
+                continue
+            parent = target.parent
+            symlink_found = False
+            while True:
+                if parent.exists() and parent.is_symlink():
+                    symlink_found = True
+                    break
+                if parent == generated_root_resolved:
+                    break
+                if parent.parent == parent:
+                    symlink_found = True
+                    break
+                if not parent.is_relative_to(generated_root_resolved):
+                    symlink_found = True
+                    break
+                parent = parent.parent
+            if symlink_found:
+                logger.warning(
+                    "Skipped symlinked generated file path for role %s: %s", role, rel_path
                 )
                 continue
             _atomic_write(target, file_content)

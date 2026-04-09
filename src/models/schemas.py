@@ -43,6 +43,6 @@ class StandardAgentHandoffSchema(BaseModel):
     files: list[GeneratedFileSchema] = Field(default_factory=list)
     steps: list[str] = Field(default_factory=list)
     issues: list[str] = Field(default_factory=list)
-    status: Literal["success", "failure"] = "failure"
+    status: Literal["success", "failure"] = "success"
     summary: str = ""
     handoff_notes: str = ""

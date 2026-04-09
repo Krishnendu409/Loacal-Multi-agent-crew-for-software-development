@@ -11,7 +11,10 @@ import pytest
 
 from src.agents.base_agent import Agent
 from src.agents.definitions import AGENT_ORDER, build_agents, register_agent_role
-from src.models.schemas import ArchitectHandoffSchema, StandardAgentHandoffSchema
+from src.models.schemas import (
+    ArchitectHandoffSchema,
+    StandardAgentHandoffSchema,
+)
 
 
 # ---------------------------------------------------------------------------
