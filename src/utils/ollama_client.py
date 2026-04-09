@@ -10,6 +10,7 @@ import json
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Iterable
 from typing import Any
 
 _TIMEOUT_EXTENSION_SECONDS = 120
@@ -86,15 +87,49 @@ class OllamaClient:
         return "timed out" in text
 
     def _extract_content(self, response: Any) -> str:
+        if hasattr(response, "model_dump") and callable(response.model_dump):
+            response = response.model_dump()
+        elif hasattr(response, "dict") and callable(response.dict):
+            response = response.dict()
+
         if isinstance(response, dict):
             message = response.get("message", {})
-            content = message.get("content") if isinstance(message, dict) else None
-            if isinstance(content, str):
-                return content
+            content = None
+            if isinstance(message, dict):
+                content = message.get("content")
+            elif hasattr(message, "content"):
+                content = getattr(message, "content")
+
+            normalized = self._normalize_content(content)
+            if normalized is not None:
+                return normalized
+
             legacy_content = response.get("response")
             if isinstance(legacy_content, str):
                 return legacy_content
         raise RuntimeError("Ollama response missing message.content")
+
+    @staticmethod
+    def _normalize_content(content: Any) -> str | None:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, Iterable) and not isinstance(content, (str, bytes, dict)):
+            text_parts: list[str] = []
+            for part in content:
+                if isinstance(part, str):
+                    text_parts.append(part)
+                    continue
+                if isinstance(part, dict):
+                    text = part.get("text")
+                    if isinstance(text, str):
+                        text_parts.append(text)
+                        continue
+                    nested_content = part.get("content")
+                    if isinstance(nested_content, str):
+                        text_parts.append(nested_content)
+            if text_parts:
+                return "".join(text_parts)
+        return None
 
     @staticmethod
     def _chat_once(
