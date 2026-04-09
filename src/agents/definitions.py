@@ -112,13 +112,17 @@ def _ceo_planner(llm: "OllamaClient", llm_config: dict[str, object] | None) -> A
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full analysis in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Problem Framing** – clarified statement of the real problem\n"
             "2. **Success Metrics** – concrete, measurable outcomes\n"
             "3. **Execution Plan** – phased plan with priorities\n"
             "4. **Risks & Dependencies** – what can block delivery\n"
             "5. **Decision Gate for User** – explicit options and recommended path\n"
-            "6. **Handoff to Market Researcher** – what to validate externally"
+            "6. **Handoff to Market Researcher** – what to validate externally\n\n"
+            "Use the 'summary' field for a one-paragraph executive overview. "
+            "Use the 'steps' field for the ordered list of execution phases (short labels). "
+            "List any blockers or unknowns in the 'issues' field."
         ),
     )
 
@@ -136,13 +140,16 @@ def _market_researcher(llm: "OllamaClient", llm_config: dict[str, object] | None
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full analysis in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Target Users & Jobs-to-be-Done**\n"
             "2. **Competitive Landscape** – strengths/weaknesses\n"
             "3. **Market Gaps** – unmet needs worth targeting\n"
             "4. **Differentiation Strategy** – where we can win\n"
             "5. **Scope Recommendation** – MVP vs next iterations\n"
-            "6. **Handoff to Product Manager** – decisions to encode in requirements"
+            "6. **Handoff to Product Manager** – decisions to encode in requirements\n\n"
+            "Use 'summary' for a brief one-paragraph overview. "
+            "List key market gaps or risks in the 'issues' field."
         ),
     )
 
@@ -162,12 +169,15 @@ def _customer_support_feedback_analyst(
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full analysis in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Likely User Pain Points** – top issues users will face\n"
             "2. **Supportability Requirements** – diagnostics, logs, error clarity, self-help\n"
             "3. **Feedback Loops** – what telemetry/support channels are needed\n"
             "4. **Priority Recommendations** – what should be fixed first and why\n"
-            "5. **Handoff to Product Manager** – support-driven requirements to include"
+            "5. **Handoff to Product Manager** – support-driven requirements to include\n\n"
+            "Use 'summary' for a brief one-paragraph overview. "
+            "List the top pain points in the 'issues' field."
         ),
     )
 
@@ -188,14 +198,17 @@ def _product_manager(llm: "OllamaClient", llm_config: dict[str, object] | None) 
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full product specification in the 'handoff_notes' field, "
+            "structured as:\n"
             "1. **Project Overview** – one-paragraph summary\n"
             "2. **Goals & Non-Goals** – bullet lists\n"
             "3. **Functional Requirements** – numbered list\n"
             "4. **Non-Functional Requirements** – performance, security, scalability\n"
             "5. **User Stories** – 'As a <user>, I want <feature> so that <benefit>'\n"
             "6. **Acceptance Criteria** – how we know the project is done\n"
-            "7. **Open Questions** – anything still unclear"
+            "7. **Open Questions** – anything still unclear\n\n"
+            "Use 'summary' for the one-paragraph project overview. "
+            "List open questions and unresolved ambiguities in the 'issues' field."
         ),
     )
 
@@ -215,12 +228,14 @@ def _compliance_privacy_specialist(
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full compliance assessment in the 'handoff_notes' field, structured as:\n"
             "1. **Regulatory Scope Assumptions** – likely applicable standards\n"
             "2. **Data Classification & Flows** – what data is sensitive and where it moves\n"
             "3. **Required Controls** – retention, consent, access, deletion, auditability\n"
             "4. **Implementation Constraints** – must-do requirements for architecture/build\n"
-            "5. **Handoff to Architect and Security Engineer** – mandatory guardrails"
+            "5. **Handoff to Architect and Security Engineer** – mandatory guardrails\n\n"
+            "Use 'summary' for a brief overview. "
+            "List each mandatory control as a separate entry in the 'issues' field."
         ),
     )
 
@@ -248,7 +263,10 @@ def _architect(llm: "OllamaClient", llm_config: dict[str, object] | None) -> Age
             "4. **Data Models** – key entities and relationships\n"
             "5. **API Design** – key endpoints/interfaces\n"
             "6. **Design Decisions & Trade-offs** – why this approach\n"
-            "7. **Potential Risks** – scalability, security, or complexity concerns"
+            "7. **Potential Risks** – scalability, security, or complexity concerns\n\n"
+            "Place this full report in the 'handoff_notes' field of the JSON schema. "
+            "Populate 'system_diagram_json', 'database_schema', 'api_endpoints', "
+            "'design_decisions', and 'risks' fields as required by the schema."
         ),
     )
 
@@ -266,12 +284,14 @@ def _ui_ux_designer(llm: "OllamaClient", llm_config: dict[str, object] | None) -
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full UX design in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **User Journey Map** – key personas and flows\n"
             "2. **Information Architecture** – screens and navigation model\n"
             "3. **Interaction & Visual Guidelines** – layout, state changes, feedback behavior\n"
             "4. **Accessibility Requirements** – keyboard, contrast, semantics, error messaging\n"
-            "5. **Design Handoff** – implementation-ready guidance for Frontend Developer"
+            "5. **Design Handoff** – implementation-ready guidance for Frontend Developer\n\n"
+            "Use 'summary' for a brief overview. List open design gaps in the 'issues' field."
         ),
     )
 
@@ -289,12 +309,15 @@ def _database_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full database design in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Data Model Plan** – entities, keys, constraints\n"
             "2. **Indexing & Query Strategy** – expected access patterns and optimizations\n"
             "3. **Migration Plan** – safe rollout/rollback guidance\n"
             "4. **Data Integrity & Retention Controls** – validation and lifecycle rules\n"
-            "5. **Handoff to Backend and Data/Analytics Engineers**"
+            "5. **Handoff to Backend and Data/Analytics Engineers**\n\n"
+            "Use 'summary' for a brief overview. List schema risks in the 'issues' field. "
+            "Include CREATE TABLE or schema DDL as entries in the 'files' field."
         ),
     )
 
@@ -312,12 +335,15 @@ def _api_integration_engineer(llm: "OllamaClient", llm_config: dict[str, object]
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full API integration design in the 'handoff_notes' field as a structured "
+            "report covering these sections:\n"
             "1. **Integration Surface** – upstream/downstream dependencies\n"
             "2. **Contract Definitions** – payloads, validation, versioning expectations\n"
             "3. **Reliability Patterns** – retries, circuit-breaking, idempotency\n"
             "4. **Failure & Recovery Paths** – timeout/error handling decisions\n"
-            "5. **Handoff to Frontend, Backend, and SRE Engineers**"
+            "5. **Handoff to Frontend, Backend, and SRE Engineers**\n\n"
+            "Use 'summary' for a brief overview. List integration risks in the 'issues' field. "
+            "Place any OpenAPI or contract YAML/JSON in the 'files' field."
         ),
     )
 
@@ -337,12 +363,15 @@ def _backend_developer(llm: "OllamaClient", llm_config: dict[str, object] | None
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your implementation details in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Implementation Plan** – what you will build and why\n"
-            "2. **Code** – complete, runnable source files in fenced code blocks\n"
-            "3. **Setup Instructions** – how to install dependencies and run the code\n"
-            "4. **Known Limitations** – anything not yet implemented\n"
-            "5. **Checklist Coverage** – explicitly map each must-address item to a fix"
+            "2. **Setup Instructions** – how to install dependencies and run the code\n"
+            "3. **Known Limitations** – anything not yet implemented\n"
+            "4. **Checklist Coverage** – explicitly map each must-address item to a fix\n\n"
+            "Use 'summary' for a one-paragraph overview. "
+            "Place all source code files as entries in the 'files' field with the correct paths. "
+            "List remaining issues or gaps in the 'issues' field."
         ),
     )
 
@@ -360,12 +389,15 @@ def _data_analytics_engineer(llm: "OllamaClient", llm_config: dict[str, object] 
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full analytics design in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Metric Framework** – north-star and supporting metrics\n"
             "2. **Event/Tracking Plan** – events, properties, and ownership\n"
             "3. **Data Quality Controls** – validation and anomaly checks\n"
             "4. **Reporting/Observability Outputs** – dashboards or reporting requirements\n"
-            "5. **Handoff to Product Manager and Release Manager**"
+            "5. **Handoff to Product Manager and Release Manager**\n\n"
+            "Use 'summary' for a brief overview. List data quality risks in the 'issues' field. "
+            "Place any schema definitions or tracking configs in the 'files' field."
         ),
     )
 
@@ -383,12 +415,15 @@ def _performance_engineer(llm: "OllamaClient", llm_config: dict[str, object] | N
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full performance review in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Performance Budget** – response-time/resource targets\n"
             "2. **Hotspot Analysis** – likely bottlenecks by component\n"
             "3. **Optimization Plan** – prioritized fixes with expected impact\n"
-            "4. **Load/Stress Validation Guidance** – how to verify improvements\n"
-            "5. **Must-Address Checklist** – [Critical]/[Major]/[Minor] findings"
+            "4. **Load/Stress Validation Guidance** – how to verify improvements\n\n"
+            "Use 'summary' for a brief overview. "
+            "List each finding in the 'issues' field with a severity prefix: "
+            "[Critical], [Major], or [Minor]."
         ),
     )
 
@@ -406,13 +441,15 @@ def _security_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full security assessment in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Threat Model Snapshot** – assets, trust boundaries, abuse paths\n"
             "2. **Security Findings** – severity-tagged issues with reasoning\n"
             "3. **Required Fixes** – concrete, prioritized remediation actions\n"
-            "4. **Verification Guidance** – how to validate each fix\n"
-            "5. **Must-Address Checklist** – bullet list where each item starts with "
-            "[Critical], [Major], or [Minor]"
+            "4. **Verification Guidance** – how to validate each fix\n\n"
+            "Use 'summary' for a brief overview. "
+            "List each security finding in the 'issues' field with a severity prefix: "
+            "[Critical], [Major], or [Minor]."
         ),
     )
 
@@ -430,12 +467,15 @@ def _frontend_developer(llm: "OllamaClient", llm_config: dict[str, object] | Non
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your frontend implementation details in the 'handoff_notes' field as a structured "
+            "report covering these sections:\n"
             "1. **Frontend Plan** – pages/components/state strategy\n"
             "2. **UX & Visual Design Decisions** – layout, interaction, accessibility\n"
-            "3. **Code** – complete frontend code in fenced blocks\n"
-            "4. **Integration Notes** – API contracts and error states\n"
-            "5. **Known Limitations** – what remains for iteration"
+            "3. **Integration Notes** – API contracts and error states\n"
+            "4. **Known Limitations** – what remains for iteration\n\n"
+            "Use 'summary' for a brief overview. "
+            "Place all frontend source code files as entries in the 'files' field. "
+            "List remaining gaps or concerns in the 'issues' field."
         ),
     )
 
@@ -454,14 +494,16 @@ def _qa_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> A
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full QA assessment in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Test Strategy** – what types of tests (unit, integration, e2e)\n"
             "2. **Test Cases** – table or numbered list with: ID, description, steps, expected result\n"
-            "3. **Automated Tests** – concrete test code in fenced code blocks\n"
-            "4. **Edge Cases & Negative Tests** – what should fail gracefully\n"
-            "5. **Quality Concerns** – bugs or gaps spotted in the implementation\n"
-            "6. **Must-Address Checklist** – bullet list where each item starts with "
-            "[Critical], [Major], or [Minor]"
+            "3. **Edge Cases & Negative Tests** – what should fail gracefully\n"
+            "4. **Quality Concerns** – bugs or gaps spotted in the implementation\n\n"
+            "Use 'summary' for a brief overview. "
+            "Place automated test files as entries in the 'files' field. "
+            "List each quality finding in the 'issues' field with a severity prefix: "
+            "[Critical], [Major], or [Minor]."
         ),
     )
 
@@ -481,15 +523,17 @@ def _code_reviewer(llm: "OllamaClient", llm_config: dict[str, object] | None) ->
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full code review in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Overall Assessment** – brief verdict (Approved / Needs Changes / Blocked)\n"
             "2. **Strengths** – what was done well\n"
             "3. **Issues** – severity (Critical / Major / Minor), location, description, suggestion\n"
             "4. **Security Review** – any vulnerabilities or concerns\n"
             "5. **Performance Review** – bottlenecks or inefficiencies\n"
-            "6. **Final Recommendations** – ordered list of the most important actions\n"
-            "7. **Must-Address Checklist** – bullet list where each item starts with "
-            "[Critical], [Major], or [Minor]"
+            "6. **Final Recommendations** – ordered list of the most important actions\n\n"
+            "Use 'summary' for the overall assessment verdict. "
+            "List each review finding in the 'issues' field with a severity prefix: "
+            "[Critical], [Major], or [Minor]."
         ),
     )
 
@@ -508,13 +552,15 @@ def _devops_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) 
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full DevOps plan in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Deployment Strategy** – containerisation, cloud, or on-prem\n"
-            "2. **Dockerfile / Docker Compose** – complete files in fenced code blocks\n"
-            "3. **CI/CD Pipeline** – YAML definition (GitHub Actions, GitLab CI, etc.)\n"
-            "4. **Environment Variables & Secrets** – what needs to be configured\n"
-            "5. **Monitoring & Logging** – recommended tooling\n"
-            "6. **Runbook** – how to deploy, roll back, and debug in production"
+            "2. **Environment Variables & Secrets** – what needs to be configured\n"
+            "3. **Monitoring & Logging** – recommended tooling\n"
+            "4. **Runbook** – how to deploy, roll back, and debug in production\n\n"
+            "Use 'summary' for a brief overview. "
+            "Place Dockerfile, Docker Compose, and CI/CD pipeline YAML as entries in the 'files' field. "
+            "List operational risks or gaps in the 'issues' field."
         ),
     )
 
@@ -532,12 +578,16 @@ def _technical_writer(llm: "OllamaClient", llm_config: dict[str, object] | None)
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full documentation plan in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Documentation Inventory** – what docs are required\n"
             "2. **Developer Setup Docs** – install/run/debug guidance\n"
             "3. **Operational Runbooks** – incidents, rollback, escalation\n"
             "4. **User-Facing Notes** – release and change communication\n"
-            "5. **Handoff to Release Manager and Customer Support/Feedback Analyst**"
+            "5. **Handoff to Release Manager and Customer Support/Feedback Analyst**\n\n"
+            "Use 'summary' for a brief overview. "
+            "Place completed documentation files as entries in the 'files' field. "
+            "List documentation gaps in the 'issues' field."
         ),
     )
 
@@ -555,12 +605,15 @@ def _sre_reliability_engineer(llm: "OllamaClient", llm_config: dict[str, object]
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full SRE assessment in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Reliability Objectives** – SLO/SLI and error budget assumptions\n"
             "2. **Failure Modes & Mitigations** – dependency and infrastructure risks\n"
             "3. **Observability Plan** – logs, metrics, traces, alerts\n"
             "4. **Incident Response Readiness** – on-call and escalation guidance\n"
-            "5. **Handoff to DevOps and Release Manager**"
+            "5. **Handoff to DevOps and Release Manager**\n\n"
+            "Use 'summary' for a brief overview. "
+            "List reliability risks in the 'issues' field."
         ),
     )
 
@@ -578,12 +631,15 @@ def _release_manager(llm: "OllamaClient", llm_config: dict[str, object] | None) 
         ),
         llm=llm,
         extra_instructions=(
-            "Structure your output as:\n"
+            "Write your full release plan in the 'handoff_notes' field as a structured report "
+            "covering these sections:\n"
             "1. **Release Readiness Checklist** – required approvals and artifacts\n"
             "2. **Rollout Strategy** – stages, canaries, rollback criteria\n"
             "3. **Risk Register** – open risks and mitigations\n"
             "4. **Go/No-Go Decision Input** – what must be true before launch\n"
-            "5. **Post-Release Validation Plan** – stability and customer-impact checks"
+            "5. **Post-Release Validation Plan** – stability and customer-impact checks\n\n"
+            "Use 'summary' for the go/no-go recommendation. "
+            "List open release blockers in the 'issues' field."
         ),
     )
 

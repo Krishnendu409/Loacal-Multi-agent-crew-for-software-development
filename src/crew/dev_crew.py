@@ -382,10 +382,6 @@ class DevCrew:
         )
         if _exc is not None:
             raise _exc
-        outputs[agent.role] = safe_response
-        context_parts.append(self._format_context_entry(agent.role, safe_response))
-        if self._memory and self._memory.enabled:
-            self._memory.add_artifact(role=agent.role, task=task.title, content=safe_response)
         display.print_agent_response(agent.role, safe_response)
         if self.save_individual:
             self._save_response(project_name, agent.role, safe_response)

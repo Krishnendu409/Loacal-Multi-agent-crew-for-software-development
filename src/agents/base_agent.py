@@ -56,12 +56,15 @@ class Agent:
                 "Return structured, valid JSON only with this schema:\n"
                 "{\n"
                 '  "files": [{"path": "relative/path.ext", "content": "..." }],\n'
-                '  "steps": ["..."],\n'
-                '  "issues": ["..."],\n'
-                '  "status": "success | failure",\n'
-                '  "summary": "...",\n'
-                '  "handoff_notes": "Handoff Notes for Next Role"\n'
-                "}"
+                '  "steps": ["ordered list of execution / delivery phases"],\n'
+                '  "issues": ["risks, blockers, or concerns to flag"],\n'
+                '  "status": "success",\n'
+                '  "summary": "One concise paragraph summarising your output",\n'
+                '  "handoff_notes": "Full detailed analysis and recommendations for the next role"\n'
+                "}\n"
+                'Set status to "success" when your response is complete, even when you identify '
+                "challenges, trade-offs, or open questions. "
+                'Only use "failure" when you genuinely cannot produce any useful output.'
             )
         if self.extra_instructions:
             parts.append(self.extra_instructions)

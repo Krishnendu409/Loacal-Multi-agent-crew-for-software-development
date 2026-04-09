@@ -5,6 +5,8 @@ Provides a consistent, visually appealing UI for the agent communication log.
 
 from __future__ import annotations
 
+import json
+
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -111,13 +113,79 @@ def print_agent_start(role: str, task_title: str) -> None:
     )
 
 
+def _render_agent_output(content: str) -> Markdown:
+    """Convert a raw agent response to human-readable Markdown.
+
+    When the agent returns a JSON blob that matches the standard handoff
+    schema, the individual fields (summary, handoff_notes, steps, issues,
+    files) are rendered as formatted Markdown sections so the output is
+    easy to read in the terminal.  Plain text / Markdown responses are
+    returned unchanged.
+    """
+    stripped = content.strip()
+    if not stripped.startswith("{"):
+        return Markdown(content)
+    try:
+        data = json.loads(stripped)
+    except (json.JSONDecodeError, ValueError):
+        return Markdown(content)
+    if not isinstance(data, dict):
+        return Markdown(content)
+
+    parts: list[str] = []
+
+    # Status badge – only shown when the model flagged a problem
+    status = data.get("status", "success")
+    if status == "failure":
+        parts.append("⚠️ **Status:** The agent flagged issues — see *Issues & Risks* below.")
+
+    # One-paragraph executive summary
+    summary = str(data.get("summary", "")).strip()
+    if summary:
+        parts.append(f"### Summary\n\n{summary}")
+
+    # Main narrative content (full analysis, recommendations, handoff context)
+    handoff = str(data.get("handoff_notes", "")).strip()
+    if handoff:
+        parts.append(f"### Analysis & Handoff Notes\n\n{handoff}")
+
+    # Ordered execution / delivery steps
+    steps = data.get("steps", [])
+    if isinstance(steps, list) and steps:
+        step_lines = "\n".join(f"- {s}" for s in steps if isinstance(s, str) and s.strip())
+        if step_lines:
+            parts.append(f"### Steps\n\n{step_lines}")
+
+    # Identified issues, risks, or blockers
+    issues = data.get("issues", [])
+    if isinstance(issues, list) and issues:
+        issue_lines = "\n".join(f"- ⚠️ {i}" for i in issues if isinstance(i, str) and i.strip())
+        if issue_lines:
+            parts.append(f"### Issues & Risks\n\n{issue_lines}")
+
+    # Generated file paths (content is persisted to disk separately)
+    files = data.get("files", [])
+    if isinstance(files, list) and files:
+        file_lines = "\n".join(
+            f"- `{f.get('path', '?')}`" for f in files if isinstance(f, dict) and f.get("path")
+        )
+        if file_lines:
+            parts.append(f"### Generated Files\n\n{file_lines}")
+
+    if not parts:
+        # JSON present but no recognisable fields – fall back to raw render
+        return Markdown(content)
+
+    return Markdown("\n\n---\n\n".join(parts))
+
+
 def print_agent_response(role: str, content: str) -> None:
     """Display an agent's response in a styled panel."""
     colour = _colour_for(role)
     emoji = _emoji_for(role)
     console.print(
         Panel(
-            Markdown(content),
+            _render_agent_output(content),
             title=f"{emoji} [bold {colour}]{role}[/bold {colour}]",
             border_style=colour,
             padding=(1, 2),

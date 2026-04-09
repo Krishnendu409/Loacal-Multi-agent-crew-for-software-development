@@ -100,7 +100,7 @@ def test_agent_system_prompt_includes_skills_and_handoff_contract(mock_llm):
     system_prompt, _ = mock_llm.chat.call_args[0]
     assert "Apply these operational skills" in system_prompt
     assert "secure coding" in system_prompt
-    assert "Handoff Notes for Next Role" in system_prompt
+    assert "handoff_notes" in system_prompt
 
 
 # ---------------------------------------------------------------------------
