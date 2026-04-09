@@ -447,6 +447,8 @@ class DevCrew:
         finally:
             duration_ms = int((time.perf_counter() - started) * 1000)
         safe_response = _sanitize_agent_output(response)
+        # Persist outputs and context before potentially re-raising an exception
+        # so that partial results remain available to callers for debugging/resumption.
         outputs[agent.role] = safe_response
         # Keep context_parts updated for callers that still use it (e.g. fix graph)
         context_parts.append(self._format_context_entry(agent.role, safe_response))
@@ -812,7 +814,8 @@ class DevCrew:
         if not entries:
             return ""
 
-        # Hard-cap: drop earliest entries if total exceeds MAX_CONTEXT_CHARS
+        # Enforce MAX_CONTEXT_CHARS: iterate from the most-recent entry backwards,
+        # keeping entries until adding the next one would exceed the cap.
         total = 0
         kept: list[str] = []
         for entry in reversed(entries):
