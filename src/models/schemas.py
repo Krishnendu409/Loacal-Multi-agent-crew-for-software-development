@@ -32,3 +32,17 @@ class QuorumJudgeSchema(BaseModel):
     selected_option: Literal["A", "B", "merged"]
     rationale: str = Field(min_length=1)
     merged_architecture: ArchitectHandoffSchema
+
+
+class GeneratedFileSchema(BaseModel):
+    path: str = Field(min_length=1)
+    content: str
+
+
+class StandardAgentHandoffSchema(BaseModel):
+    files: list[GeneratedFileSchema] = Field(default_factory=list)
+    steps: list[str] = Field(default_factory=list)
+    issues: list[str] = Field(default_factory=list)
+    status: Literal["success", "failure"] = "success"
+    summary: str = ""
+    handoff_notes: str = ""

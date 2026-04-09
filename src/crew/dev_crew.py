@@ -365,6 +365,7 @@ class DevCrew:
         safe_response = _sanitize_agent_output(response)
         outputs[agent.role] = safe_response
         context_parts.append(self._format_context_entry(agent.role, safe_response))
+        self._persist_generated_files(project_name, agent.role, safe_response)
         if self._memory and self._memory.enabled:
             self._memory.add_artifact(role=agent.role, task=task.title, content=safe_response)
         self._record_manifest_role(
@@ -705,6 +706,51 @@ class DevCrew:
                 logger.warning("Could not back up %s: %s", path, exc)
         _atomic_write(path, content)
         display.print_saved(str(path))
+
+    def _persist_generated_files(self, project_name: str, role: str, content: str) -> None:
+        parsed = parse_structured_result(content)
+        if not parsed.files:
+            return
+        run_dir = self._get_run_dir(project_name)
+        generated_root = run_dir / "generated_project"
+        for file_obj in parsed.files:
+            rel_path = file_obj.get("path", "").strip()
+            file_content = file_obj.get("content", "")
+            if not rel_path or not isinstance(file_content, str):
+                continue
+            rel = Path(rel_path)
+            if rel.is_absolute():
+                logger.warning("Skipped unsafe generated file path for role %s: %s", role, rel_path)
+                continue
+            generated_root_resolved = generated_root.resolve()
+            target = (generated_root_resolved / rel).resolve()
+            if not target.is_relative_to(generated_root_resolved):
+                logger.warning(
+                    "Skipped out-of-root generated file path for role %s: %s", role, rel_path
+                )
+                continue
+            parent = target.parent
+            symlink_found = False
+            while True:
+                if parent.exists() and parent.is_symlink():
+                    symlink_found = True
+                    break
+                if parent == generated_root_resolved:
+                    break
+                if parent.parent == parent:
+                    symlink_found = True
+                    break
+                if not parent.is_relative_to(generated_root_resolved):
+                    symlink_found = True
+                    break
+                parent = parent.parent
+            if symlink_found:
+                logger.warning(
+                    "Skipped symlinked generated file path for role %s: %s", role, rel_path
+                )
+                continue
+            _atomic_write(target, file_content)
+            logger.debug("Saved generated artifact for %s to %s", role, target)
 
     def _is_major(self, issue: str) -> bool:
         lower = issue.lower()
