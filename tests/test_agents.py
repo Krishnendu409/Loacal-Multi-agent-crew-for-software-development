@@ -383,6 +383,49 @@ def test_ollama_client_chat_accepts_legacy_response_shape():
         assert oc.chat("system", "user") == "legacy text"
 
 
+def test_ollama_client_chat_accepts_object_response_shape():
+    """Ollama SDK object responses should be accepted by normalizing model_dump()."""
+    from unittest.mock import MagicMock, patch
+
+    from src.utils.ollama_client import OllamaClient
+
+    class _MockChatResponse:
+        def model_dump(self) -> dict[str, object]:
+            return {"message": {"content": "object text"}}
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+    mock_client_instance.chat.return_value = _MockChatResponse()
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        assert oc.chat("system", "user") == "object text"
+
+
+def test_ollama_client_chat_accepts_list_content_shape():
+    """List-based multimodal content should be reduced to concatenated text."""
+    from unittest.mock import MagicMock, patch
+
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+    mock_client_instance.chat.return_value = {
+        "message": {
+            "content": [
+                {"type": "text", "text": "hello "},
+                {"type": "text", "text": "world"},
+            ]
+        }
+    }
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        assert oc.chat("system", "user") == "hello world"
+
+
 def test_ollama_client_retries_timeout_with_extended_timeout():
     """Timeout errors should trigger a retry with a larger timeout budget."""
     from unittest.mock import MagicMock, patch
