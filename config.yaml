@@ -7,11 +7,11 @@ llm:
   #   - qwen2.5:7b-instruct
   #   - deepseek-coder:6.7b
   #   - phi3:mini
-  model: qwen2.5:7b-instruct
+  model: phi3:mini
   # Ollama server URL (default local)
   base_url: http://localhost:11434
   # Retry and timeout controls (for constrained laptops)
-  retries: 1
+  retries: 0
   timeout_seconds: 600
   # Enforce a strict three-model setup
   allowed_models:
@@ -21,73 +21,33 @@ llm:
   # Generation options
   options:
     temperature: 0.4
-    num_predict: 2048
+    num_predict: 512
   # Role-specific model routing (keeps same team structure, better local quality)
   routing:
-    ceo_planner: qwen2.5:7b-instruct
-    market_researcher: qwen2.5:7b-instruct
-    customer_support_feedback_analyst: qwen2.5:7b-instruct
-    product_manager: qwen2.5:7b-instruct
+    ceo_planner: phi3:mini
+    market_researcher: phi3:mini
+    customer_support_feedback_analyst: phi3:mini
+    product_manager: phi3:mini
     compliance_privacy_specialist: phi3:mini
-    architect: qwen2.5:7b-instruct
-    ui_ux_designer: qwen2.5:7b-instruct
-    database_engineer: deepseek-coder:6.7b
-    api_integration_engineer: deepseek-coder:6.7b
-    frontend_developer: deepseek-coder:6.7b
-    backend_developer: deepseek-coder:6.7b
-    data_analytics_engineer: deepseek-coder:6.7b
+    architect: phi3:mini
+    ui_ux_designer: phi3:mini
+    database_engineer: phi3:mini
+    api_integration_engineer: phi3:mini
+    frontend_developer: phi3:mini
+    backend_developer: phi3:mini
+    data_analytics_engineer: phi3:mini
     performance_engineer: phi3:mini
     security_engineer: phi3:mini
     qa_engineer: phi3:mini
     code_reviewer: phi3:mini
-    technical_writer: qwen2.5:7b-instruct
-    sre_reliability_engineer: deepseek-coder:6.7b
-    release_manager: qwen2.5:7b-instruct
-    devops_engineer: deepseek-coder:6.7b
+    technical_writer: phi3:mini
+    sre_reliability_engineer: phi3:mini
+    release_manager: phi3:mini
+    devops_engineer: phi3:mini
   # Fallbacks used if the primary model fails for a role
-  fallbacks:
-    ceo_planner: [phi3:mini]
-    market_researcher: [phi3:mini]
-    customer_support_feedback_analyst: [phi3:mini]
-    product_manager: [phi3:mini]
-    compliance_privacy_specialist: [qwen2.5:7b-instruct]
-    architect: [phi3:mini]
-    ui_ux_designer: [phi3:mini]
-    database_engineer: [qwen2.5:7b-instruct]
-    api_integration_engineer: [qwen2.5:7b-instruct]
-    frontend_developer: [qwen2.5:7b-instruct]
-    backend_developer: [qwen2.5:7b-instruct]
-    data_analytics_engineer: [qwen2.5:7b-instruct]
-    performance_engineer: [qwen2.5:7b-instruct]
-    security_engineer: [qwen2.5:7b-instruct]
-    qa_engineer: [qwen2.5:7b-instruct]
-    code_reviewer: [qwen2.5:7b-instruct]
-    technical_writer: [phi3:mini]
-    sre_reliability_engineer: [qwen2.5:7b-instruct]
-    release_manager: [phi3:mini]
-    devops_engineer: [qwen2.5:7b-instruct]
+  fallbacks: {}
   # Optional per-role generation tuning
-  role_options:
-    ceo_planner: {temperature: 0.3, num_predict: 1536}
-    market_researcher: {temperature: 0.2, num_predict: 1536}
-    customer_support_feedback_analyst: {temperature: 0.2, num_predict: 1280}
-    product_manager: {temperature: 0.3, num_predict: 1536}
-    compliance_privacy_specialist: {temperature: 0.1, num_predict: 1024}
-    architect: {temperature: 0.2, num_predict: 1536}
-    ui_ux_designer: {temperature: 0.3, num_predict: 1536}
-    database_engineer: {temperature: 0.2, num_predict: 1536}
-    api_integration_engineer: {temperature: 0.2, num_predict: 1536}
-    frontend_developer: {temperature: 0.2, num_predict: 2048}
-    backend_developer: {temperature: 0.2, num_predict: 2048}
-    data_analytics_engineer: {temperature: 0.2, num_predict: 1536}
-    performance_engineer: {temperature: 0.1, num_predict: 1024}
-    security_engineer: {temperature: 0.1, num_predict: 1024}
-    qa_engineer: {temperature: 0.1, num_predict: 1024}
-    code_reviewer: {temperature: 0.1, num_predict: 1024}
-    technical_writer: {temperature: 0.2, num_predict: 1536}
-    sre_reliability_engineer: {temperature: 0.2, num_predict: 1024}
-    release_manager: {temperature: 0.2, num_predict: 1024}
-    devops_engineer: {temperature: 0.2, num_predict: 1024}
+  role_options: {}
   # Optional retry strategy by role (overrides llm.retries)
   role_retries: {}
 
@@ -124,7 +84,7 @@ output:
 
 crew:
   # Strategy gate + remediation pass: planning -> approval -> build -> QA/Reviewer -> fix
-  max_fix_iterations: 3
+  max_fix_iterations: 0
   stop_on_no_major_issues: true
   require_strategy_approval: true
   # Which checklist severities should force a fix pass

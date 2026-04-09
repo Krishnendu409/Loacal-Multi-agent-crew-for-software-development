@@ -225,6 +225,26 @@ Environment overrides are also supported:
 - `CREW_REQUIRE_STRATEGY_APPROVAL`
 - `OUTPUT_DIR`
 
+For lower-memory Windows laptops, set Ollama runtime limits before launching Ollama:
+
+```powershell
+setx OLLAMA_MAX_LOADED_MODELS 1
+setx OLLAMA_NUM_PARALLEL 1
+```
+
+If you see `Ollama response missing message.content`, verify runtime versions:
+
+```bash
+ollama --version
+python -c "import ollama; print(ollama.__version__)"
+```
+
+Then upgrade Python SDK if needed:
+
+```bash
+pip install -U "ollama>=0.4.0,<1.0"
+```
+
 ```yaml
 llm:
   model: qwen2.5:7b-instruct
