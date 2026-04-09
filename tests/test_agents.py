@@ -367,6 +367,22 @@ def test_ollama_client_chat_raises_on_missing_message_content():
             oc.chat("system", "user")
 
 
+def test_ollama_client_chat_accepts_legacy_response_shape():
+    """Legacy Ollama responses with top-level `response` should be accepted."""
+    from unittest.mock import MagicMock, patch
+
+    from src.utils.ollama_client import OllamaClient
+
+    mock_ollama_module = MagicMock()
+    mock_client_instance = MagicMock()
+    mock_client_instance.chat.return_value = {"response": "legacy text"}
+    mock_ollama_module.Client.return_value = mock_client_instance
+
+    with patch("src.utils.ollama_client._get_ollama", return_value=mock_ollama_module):
+        oc = OllamaClient(model="phi3:mini")
+        assert oc.chat("system", "user") == "legacy text"
+
+
 def test_ollama_client_retries_timeout_with_extended_timeout():
     """Timeout errors should trigger a retry with a larger timeout budget."""
     from unittest.mock import MagicMock, patch

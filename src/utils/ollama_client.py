@@ -86,10 +86,14 @@ class OllamaClient:
         return "timed out" in text
 
     def _extract_content(self, response: Any) -> str:
-        message = response.get("message", {}) if isinstance(response, dict) else {}
-        content = message.get("content") if isinstance(message, dict) else None
-        if isinstance(content, str):
-            return content
+        if isinstance(response, dict):
+            message = response.get("message", {})
+            content = message.get("content") if isinstance(message, dict) else None
+            if isinstance(content, str):
+                return content
+            legacy_content = response.get("response")
+            if isinstance(legacy_content, str):
+                return legacy_content
         raise RuntimeError("Ollama response missing message.content")
 
     @staticmethod
