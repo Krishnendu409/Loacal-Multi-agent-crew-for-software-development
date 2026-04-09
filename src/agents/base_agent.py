@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from typing import TYPE_CHECKING
 
+from src.models.schemas import StandardAgentHandoffSchema
+
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
@@ -97,6 +99,8 @@ class Agent:
         format_schema: dict[str, Any] | None = None
         if self.output_schema is not None:
             format_schema = self.output_schema.model_json_schema()
+        elif self.enforce_handoff_sections:
+            format_schema = StandardAgentHandoffSchema.model_json_schema()
         return self.llm.chat(
             self.system_prompt(),
             user_message,
