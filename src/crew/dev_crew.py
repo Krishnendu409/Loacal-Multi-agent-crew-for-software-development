@@ -20,7 +20,7 @@ from src.agents.base_agent import Agent
 from src.crew.state_graph import StateGraph
 from src.execution.docker_runner import DockerExecutionRunner
 from src.models.schemas import ArchitectHandoffSchema, QuorumJudgeSchema
-from src.protocol.messages import parse_structured_result
+from src.protocol.messages import extract_fenced_files, parse_structured_result
 from src.tasks.software_dev_tasks import TASKS, Task
 from src.utils import display
 from src.utils.memory import CrewMemory
@@ -304,6 +304,7 @@ class DevCrew:
         if self.save_report:
             self._save_final_report(project_name, requirements, outputs)
         self._save_run_manifest(project_name, outputs)
+        self._print_generated_project_summary(project_name)
 
         return outputs
 
@@ -716,11 +717,17 @@ class DevCrew:
 
     def _persist_generated_files(self, project_name: str, role: str, content: str) -> None:
         parsed = parse_structured_result(content)
-        if not parsed.files:
+        file_list = parsed.files
+        # Fallback: if the model wrote code as fenced blocks in handoff_notes/summary
+        # instead of in the files[] array, recover those files too.
+        if not file_list:
+            file_list = extract_fenced_files(content)
+        if not file_list:
             return
         run_dir = self._get_run_dir(project_name)
         generated_root = run_dir / "generated_project"
-        for file_obj in parsed.files:
+        written: list[str] = []
+        for file_obj in file_list:
             rel_path = file_obj.get("path", "").strip()
             file_content = file_obj.get("content", "")
             if not rel_path or not isinstance(file_content, str):
@@ -757,7 +764,30 @@ class DevCrew:
                 )
                 continue
             _atomic_write(target, file_content)
+            written.append(rel_path)
+            display.print_code_file_written(role, str(target))
             logger.debug("Saved generated artifact for %s to %s", role, target)
+        if written:
+            display.console.print(
+                f"  [bold green]📂 {len(written)} file(s) written to {generated_root}[/bold green]"
+            )
+
+    def _print_generated_project_summary(self, project_name: str) -> None:
+        """Print a summary of all files written to the generated_project directory."""
+        run_dir = self._get_run_dir(project_name)
+        generated_root = run_dir / "generated_project"
+        if not generated_root.exists():
+            return
+        all_files = sorted(
+            p.relative_to(generated_root) for p in generated_root.rglob("*") if p.is_file()
+        )
+        if not all_files:
+            return
+        display.console.print()
+        display.console.print(f"[bold green]🎉 Generated project: {generated_root}[/bold green]")
+        for rel in all_files:
+            display.console.print(f"   [cyan]{rel}[/cyan]")
+        display.console.print()
 
     def _is_major(self, issue: str) -> bool:
         lower = issue.lower()

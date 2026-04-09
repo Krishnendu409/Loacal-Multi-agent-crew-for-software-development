@@ -225,6 +225,12 @@ def print_saved(path: str) -> None:
     console.print(f"  [dim]💾 Saved → {path}[/dim]")
 
 
+def print_code_file_written(role: str, path: str) -> None:
+    """Announce that a generated source code file has been written to disk."""
+    colour = _colour_for(role)
+    console.print(f"  [green]✅ [{colour}]{role}[/{colour}][/green] → [bold]{path}[/bold]")
+
+
 def print_error(message: str) -> None:
     """Print an error message."""
     console.print(f"[bold red]❌  Error:[/bold red] {message}")

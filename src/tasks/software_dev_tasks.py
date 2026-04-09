@@ -111,32 +111,40 @@ TASKS: dict[str, Task] = {
     "database_engineer": Task(
         title="Design database architecture, schema strategy, and migration plan",
         description=(
-            "Based on product requirements and architecture, design the persistent data layer.\n\n"
+            "Based on product requirements and architecture, design and implement the "
+            "persistent data layer.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
-            "Define schema entities, indexing strategy, migration approach, and data integrity "
-            "rules. Keep output implementation-ready and end with explicit handoff notes for "
-            "Backend Developer and Data/Analytics Engineer."
+            "Write the complete SQL schema (CREATE TABLE statements), migration scripts, "
+            "seed data, and any ORM model files needed. "
+            "Place EVERY file in the JSON 'files' array — do NOT write SQL or code inside "
+            "handoff_notes. Keep the schema implementation-ready and end with explicit "
+            "handoff notes for Backend Developer and Data/Analytics Engineer."
         ),
     ),
     "api_integration_engineer": Task(
         title="Define robust API integration contracts and failure-handling strategy",
         description=(
-            "Using the architecture and implementation context, define integration-safe API "
+            "Using the architecture and implementation context, implement integration-safe API "
             "contracts and operational handling patterns.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
-            "Cover payload contracts, versioning, retries, idempotency, timeout handling, and "
-            "degradation strategies. End with explicit handoff notes for Frontend, Backend, and "
-            "SRE / Reliability Engineer."
+            "Write complete OpenAPI/Swagger YAML or JSON specs, any client SDK stubs, "
+            "and retry/circuit-breaker configuration files. "
+            "Place EVERY file (specs, code, config) in the JSON 'files' array — do NOT "
+            "write code or YAML inside handoff_notes. End with explicit handoff notes for "
+            "Frontend, Backend, and SRE / Reliability Engineer."
         ),
     ),
     "backend_developer": Task(
         title="Implement the backend / core application code",
         description=(
             "Based on the product specification and the architecture design, "
-            "implement the backend or core application code.\n\n"
+            "implement the complete backend application.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
-            "Write complete, working, well-commented code.  Include all necessary "
-            "files and a clear setup guide.  The QA Engineer will test your code next. "
+            "Write complete, working, well-commented source code for every module, route, "
+            "service, and configuration file. Include a requirements.txt / package.json, "
+            "a README with setup instructions, and all environment config. "
+            "Place EVERY source file in the JSON 'files' array — do NOT write code inside "
+            "handoff_notes or summary. "
             "If a must-address checklist is provided, fix only those items. End with "
             "an explicit handoff note for QA and Code Review."
         ),
@@ -145,10 +153,12 @@ TASKS: dict[str, Task] = {
         title="Design and implement frontend UX/UI",
         description=(
             "Based on the strategy, product specification, and architecture design, "
-            "implement the frontend user experience.\n\n"
+            "implement the complete frontend application.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
-            "Provide production-quality UI structure, component logic, and clear interaction "
-            "flows. Ensure responsiveness, accessibility, and error handling paths. "
+            "Write complete, production-quality component code, styles, routing, state "
+            "management, and API integration. Include a package.json and any config files. "
+            "Place EVERY source file in the JSON 'files' array — do NOT write code inside "
+            "handoff_notes or summary. "
             "If a must-address checklist is provided, fix only those items. End with "
             "an explicit handoff note for Backend, Security Engineer, QA, and Code Review."
         ),
@@ -175,12 +185,15 @@ TASKS: dict[str, Task] = {
         ),
     ),
     "qa_engineer": Task(
-        title="Create test plan and automated tests",
+        title="Write automated tests for the implementation",
         description=(
-            "Review the implementation produced by Frontend/Backend developers and create "
-            "a comprehensive test plan.\n\n"
+            "Review the implementation produced by Frontend/Backend developers and write "
+            "comprehensive automated tests.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
-            "Write concrete automated tests that verify the most important behaviors. "
+            "Write concrete, runnable automated test files that verify the most important "
+            "behaviors — unit tests, integration tests, and e2e tests as appropriate. "
+            "Place EVERY test file in the JSON 'files' array — do NOT write test code "
+            "inside handoff_notes or summary. "
             "Highlight any bugs or quality concerns you find in the implementation. "
             "Provide a must-address checklist with severity tags and end with an "
             "explicit handoff note for Frontend/Backend developers."
@@ -215,8 +228,11 @@ TASKS: dict[str, Task] = {
             "Based on the full project deliverables, create all the configuration "
             "needed to deploy and operate this system reliably.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
-            "Provide a complete Dockerfile (or Docker Compose), a CI/CD pipeline "
-            "definition, and a brief runbook. End with operational handoff notes."
+            "Write a complete Dockerfile (or docker-compose.yml), a CI/CD pipeline "
+            "definition (GitHub Actions, GitLab CI, or similar), a .env.example, "
+            "and any infrastructure-as-code files needed. "
+            "Place EVERY config file in the JSON 'files' array — do NOT write config or "
+            "YAML inside handoff_notes. End with operational handoff notes."
         ),
     ),
     "technical_writer": Task(
@@ -225,8 +241,11 @@ TASKS: dict[str, Task] = {
             "Using completed technical outputs, produce concise docs for developers, operators, "
             "and customer-facing stakeholders.\n\n"
             "Original requirements:\n---\n{requirements}\n---\n\n"
-            "Deliver setup docs, troubleshooting guides, and operational runbooks with clear "
-            "ownership. End with explicit handoff notes for Release Manager and Customer Support/Feedback Analyst."
+            "Write a README.md, a CONTRIBUTING.md, API reference docs, and any runbooks "
+            "as complete Markdown files. "
+            "Place EVERY documentation file in the JSON 'files' array — do NOT write "
+            "documentation text inside handoff_notes. End with explicit handoff notes for "
+            "Release Manager and Customer Support/Feedback Analyst."
         ),
     ),
     "sre_reliability_engineer": Task(

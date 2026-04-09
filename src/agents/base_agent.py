@@ -20,6 +20,23 @@ if TYPE_CHECKING:
     from src.utils.ollama_client import OllamaClient
 
 
+_CODE_INSTRUCTION = """\
+CRITICAL REQUIREMENT — YOU MUST PRODUCE ACTUAL SOURCE CODE FILES:
+Every source code file, configuration file, SQL schema, Dockerfile, test file, \
+or script you write MUST be placed as a separate entry in the "files" array \
+of your JSON response.
+DO NOT write code as plain text inside "handoff_notes" or "summary".
+The "files" array is the ONLY place where code belongs.
+Each entry must have:
+  - "path": the relative file path (e.g. "src/app.py", "tests/test_app.py")
+  - "content": the COMPLETE file contents — no stubs, no placeholders, \
+no pseudocode.
+Example:
+  {"path": "src/main.py", "content": "def main():\\n    print('Hello')\\n\\nif __name__ == '__main__':\\n    main()\\n"}
+Write complete, runnable files that a developer can use immediately.\
+"""
+
+
 @dataclass
 class Agent:
     """A single member of the development crew."""
@@ -32,6 +49,8 @@ class Agent:
     extra_instructions: str = ""
     skills: list[str] = field(default_factory=list)
     enforce_handoff_sections: bool = True
+    # When True, a prominent code-output instruction is added to the system prompt.
+    produces_code: bool = False
     llm_model: str | None = None
     llm_options: dict[str, object] = field(default_factory=dict)
     llm_fallback_models: list[str] = field(default_factory=list)
@@ -43,11 +62,13 @@ class Agent:
             f"You are a {self.role} on a software development team.",
             f"Your goal: {self.goal}",
             f"Background: {self.backstory}",
-            (
-                "Communicate professionally and clearly.  When writing code, always "
-                "use proper fenced code blocks with a language tag, e.g. ```python."
-            ),
         ]
+        if self.produces_code:
+            parts.append(_CODE_INSTRUCTION)
+        parts.append(
+            "Communicate professionally and clearly.  When writing code, always "
+            "use proper fenced code blocks with a language tag, e.g. ```python."
+        )
         if self.skills:
             skill_lines = "\n\n".join(f"- Skill:\n{skill}" for skill in self.skills)
             parts.append(f"Apply these operational skills in your response:\n{skill_lines}")

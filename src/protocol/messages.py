@@ -36,10 +36,48 @@ class AgentResult:
 
 
 _JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
+# Matches fenced code blocks that carry a filename hint in the form:
+#   ```python filename: src/app.py
+#   ```js // src/index.js
+# Group 1 = language tag, Group 2 = candidate filename, Group 3 = code body
+_FENCED_FILE_RE = re.compile(
+    r"```(?P<lang>\w+)[^\n]*?(?:filename[:\s]+|//\s*|#\s*)(?P<path>[\w./\-]+\.\w+)[^\n]*\n"
+    r"(?P<content>.*?)```",
+    re.DOTALL | re.IGNORECASE,
+)
 # Keep summaries compact to avoid prompt bloat and excessive disk writes.
 MAX_SUMMARY_LENGTH = 3000
 # Bound JSON extraction to a practical size for local model outputs.
 MAX_PARSE_LENGTH = 60000
+
+
+def extract_fenced_files(text: str) -> list[dict[str, str]]:
+    """Extract fenced code blocks that carry a filename hint from free text.
+
+    Some small models write code inside ``handoff_notes`` or ``summary`` as
+    fenced blocks with a filename comment rather than using the ``files[]``
+    array.  This function recovers those artifacts so they can be persisted.
+
+    A block is only extracted when it carries an unambiguous filename, e.g.::
+
+        ```python filename: src/app.py
+        ...code...
+        ```
+
+    Empty or whitespace-only content blocks are skipped.
+    """
+    results: list[dict[str, str]] = []
+    seen_paths: set[str] = set()
+    for match in _FENCED_FILE_RE.finditer(text):
+        path = match.group("path").strip()
+        content = match.group("content")
+        if not path or not content.strip():
+            continue
+        if path in seen_paths:
+            continue
+        seen_paths.add(path)
+        results.append({"path": path, "content": content})
+    return results
 
 
 def parse_structured_result(raw_text: str) -> AgentResult:

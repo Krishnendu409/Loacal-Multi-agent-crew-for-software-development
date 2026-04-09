@@ -308,16 +308,17 @@ def _database_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None
             "and safe production data evolution."
         ),
         llm=llm,
+        produces_code=True,
         extra_instructions=(
-            "Write your full database design in the 'handoff_notes' field as a structured report "
-            "covering these sections:\n"
+            "Place all SQL/DDL files (schema.sql, migrations/*.sql) and any ORM model "
+            "files in the 'files' array. "
+            "Write the design rationale and indexing strategy in 'handoff_notes', covering:\n"
             "1. **Data Model Plan** – entities, keys, constraints\n"
             "2. **Indexing & Query Strategy** – expected access patterns and optimizations\n"
             "3. **Migration Plan** – safe rollout/rollback guidance\n"
             "4. **Data Integrity & Retention Controls** – validation and lifecycle rules\n"
             "5. **Handoff to Backend and Data/Analytics Engineers**\n\n"
-            "Use 'summary' for a brief overview. List schema risks in the 'issues' field. "
-            "Include CREATE TABLE or schema DDL as entries in the 'files' field."
+            "Use 'summary' for a brief overview. List schema risks in the 'issues' field."
         ),
     )
 
@@ -334,16 +335,17 @@ def _api_integration_engineer(llm: "OllamaClient", llm_config: dict[str, object]
             "clear contracts, idempotency strategy, and graceful degradation."
         ),
         llm=llm,
+        produces_code=True,
         extra_instructions=(
-            "Write your full API integration design in the 'handoff_notes' field as a structured "
-            "report covering these sections:\n"
+            "Place all API contract files (openapi.yaml, api_contracts.json, client stubs) "
+            "in the 'files' array. "
+            "Write the integration strategy in 'handoff_notes', covering:\n"
             "1. **Integration Surface** – upstream/downstream dependencies\n"
             "2. **Contract Definitions** – payloads, validation, versioning expectations\n"
             "3. **Reliability Patterns** – retries, circuit-breaking, idempotency\n"
             "4. **Failure & Recovery Paths** – timeout/error handling decisions\n"
             "5. **Handoff to Frontend, Backend, and SRE Engineers**\n\n"
-            "Use 'summary' for a brief overview. List integration risks in the 'issues' field. "
-            "Place any OpenAPI or contract YAML/JSON in the 'files' field."
+            "Use 'summary' for a brief overview. List integration risks in the 'issues' field."
         ),
     )
 
@@ -362,15 +364,16 @@ def _backend_developer(llm: "OllamaClient", llm_config: dict[str, object] | None
             "maintainability."
         ),
         llm=llm,
+        produces_code=True,
         extra_instructions=(
-            "Write your implementation details in the 'handoff_notes' field as a structured report "
-            "covering these sections:\n"
-            "1. **Implementation Plan** – what you will build and why\n"
+            "Place every source code file (routes, services, models, config, requirements.txt, "
+            "README.md) in the 'files' array. "
+            "Write the implementation plan and setup instructions in 'handoff_notes', covering:\n"
+            "1. **Implementation Plan** – what you built and why\n"
             "2. **Setup Instructions** – how to install dependencies and run the code\n"
             "3. **Known Limitations** – anything not yet implemented\n"
             "4. **Checklist Coverage** – explicitly map each must-address item to a fix\n\n"
             "Use 'summary' for a one-paragraph overview. "
-            "Place all source code files as entries in the 'files' field with the correct paths. "
             "List remaining issues or gaps in the 'issues' field."
         ),
     )
@@ -388,16 +391,17 @@ def _data_analytics_engineer(llm: "OllamaClient", llm_config: dict[str, object] 
             "and metric definitions for reliable decision-making."
         ),
         llm=llm,
+        produces_code=True,
         extra_instructions=(
-            "Write your full analytics design in the 'handoff_notes' field as a structured report "
-            "covering these sections:\n"
+            "Place event schema files, tracking config, and any analytics pipeline code "
+            "in the 'files' array. "
+            "Write the analytics strategy in 'handoff_notes', covering:\n"
             "1. **Metric Framework** – north-star and supporting metrics\n"
             "2. **Event/Tracking Plan** – events, properties, and ownership\n"
             "3. **Data Quality Controls** – validation and anomaly checks\n"
             "4. **Reporting/Observability Outputs** – dashboards or reporting requirements\n"
             "5. **Handoff to Product Manager and Release Manager**\n\n"
-            "Use 'summary' for a brief overview. List data quality risks in the 'issues' field. "
-            "Place any schema definitions or tracking configs in the 'files' field."
+            "Use 'summary' for a brief overview. List data quality risks in the 'issues' field."
         ),
     )
 
@@ -466,15 +470,16 @@ def _frontend_developer(llm: "OllamaClient", llm_config: dict[str, object] | Non
             "component reusability, accessibility, and user-centered design."
         ),
         llm=llm,
+        produces_code=True,
         extra_instructions=(
-            "Write your frontend implementation details in the 'handoff_notes' field as a structured "
-            "report covering these sections:\n"
+            "Place every frontend source file (components, pages, styles, routing, "
+            "package.json, config) in the 'files' array. "
+            "Write the frontend design rationale in 'handoff_notes', covering:\n"
             "1. **Frontend Plan** – pages/components/state strategy\n"
             "2. **UX & Visual Design Decisions** – layout, interaction, accessibility\n"
             "3. **Integration Notes** – API contracts and error states\n"
             "4. **Known Limitations** – what remains for iteration\n\n"
             "Use 'summary' for a brief overview. "
-            "Place all frontend source code files as entries in the 'files' field. "
             "List remaining gaps or concerns in the 'issues' field."
         ),
     )
@@ -493,15 +498,16 @@ def _qa_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) -> A
             "that developers miss, and write tests that actually catch regressions."
         ),
         llm=llm,
+        produces_code=True,
         extra_instructions=(
-            "Write your full QA assessment in the 'handoff_notes' field as a structured report "
-            "covering these sections:\n"
+            "Place every automated test file in the 'files' array "
+            "(e.g. tests/test_api.py, tests/test_auth.py). "
+            "Write the test strategy and quality concerns in 'handoff_notes', covering:\n"
             "1. **Test Strategy** – what types of tests (unit, integration, e2e)\n"
             "2. **Test Cases** – table or numbered list with: ID, description, steps, expected result\n"
             "3. **Edge Cases & Negative Tests** – what should fail gracefully\n"
             "4. **Quality Concerns** – bugs or gaps spotted in the implementation\n\n"
             "Use 'summary' for a brief overview. "
-            "Place automated test files as entries in the 'files' field. "
             "List each quality finding in the 'issues' field with a severity prefix: "
             "[Critical], [Major], or [Minor]."
         ),
@@ -551,15 +557,16 @@ def _devops_engineer(llm: "OllamaClient", llm_config: dict[str, object] | None) 
             "with security and reproducibility in mind."
         ),
         llm=llm,
+        produces_code=True,
         extra_instructions=(
-            "Write your full DevOps plan in the 'handoff_notes' field as a structured report "
-            "covering these sections:\n"
+            "Place every configuration file (Dockerfile, docker-compose.yml, "
+            ".github/workflows/ci.yml, .env.example, Makefile) in the 'files' array. "
+            "Write the deployment strategy and runbook in 'handoff_notes', covering:\n"
             "1. **Deployment Strategy** – containerisation, cloud, or on-prem\n"
             "2. **Environment Variables & Secrets** – what needs to be configured\n"
             "3. **Monitoring & Logging** – recommended tooling\n"
             "4. **Runbook** – how to deploy, roll back, and debug in production\n\n"
             "Use 'summary' for a brief overview. "
-            "Place Dockerfile, Docker Compose, and CI/CD pipeline YAML as entries in the 'files' field. "
             "List operational risks or gaps in the 'issues' field."
         ),
     )
@@ -577,16 +584,17 @@ def _technical_writer(llm: "OllamaClient", llm_config: dict[str, object] | None)
             "and troubleshooting guides."
         ),
         llm=llm,
+        produces_code=True,
         extra_instructions=(
-            "Write your full documentation plan in the 'handoff_notes' field as a structured report "
-            "covering these sections:\n"
+            "Place every documentation file (README.md, CONTRIBUTING.md, docs/api.md, "
+            "docs/runbook.md) in the 'files' array. "
+            "Write the documentation overview in 'handoff_notes', covering:\n"
             "1. **Documentation Inventory** – what docs are required\n"
             "2. **Developer Setup Docs** – install/run/debug guidance\n"
             "3. **Operational Runbooks** – incidents, rollback, escalation\n"
             "4. **User-Facing Notes** – release and change communication\n"
             "5. **Handoff to Release Manager and Customer Support/Feedback Analyst**\n\n"
             "Use 'summary' for a brief overview. "
-            "Place completed documentation files as entries in the 'files' field. "
             "List documentation gaps in the 'issues' field."
         ),
     )
