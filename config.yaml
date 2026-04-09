@@ -1,0 +1,152 @@
+# Local Multi-Agent Software Development Crew - Configuration
+# Optimised for mid-range laptops: single phi3:mini model, low token budgets.
+
+llm:
+  # Global fallback model. Per-role routing below takes priority.
+  # phi3:mini is the lightest model and works on 8 GB RAM laptops.
+  # For better code quality on 16 GB+ RAM, switch to qwen2.5:7b-instruct.
+  model: phi3:mini
+  base_url: http://localhost:11434
+  retries: 0
+  timeout_seconds: 600
+  # Enforce a strict allowlist so accidental typos don't silently fail.
+  allowed_models:
+    - phi3:mini
+    - qwen2.5:7b-instruct
+    - deepseek-coder:6.7b
+  options:
+    temperature: 0.3
+    num_predict: 1024
+  # Route every role to phi3:mini (safe default for low-RAM laptops).
+  # On 16 GB+ RAM you can switch coding roles to deepseek-coder:6.7b
+  # and planning roles to qwen2.5:7b-instruct.
+  routing:
+    ceo_planner: phi3:mini
+    market_researcher: phi3:mini
+    customer_support_feedback_analyst: phi3:mini
+    product_manager: phi3:mini
+    compliance_privacy_specialist: phi3:mini
+    architect: phi3:mini
+    ui_ux_designer: phi3:mini
+    database_engineer: phi3:mini
+    api_integration_engineer: phi3:mini
+    frontend_developer: phi3:mini
+    backend_developer: phi3:mini
+    data_analytics_engineer: phi3:mini
+    performance_engineer: phi3:mini
+    security_engineer: phi3:mini
+    qa_engineer: phi3:mini
+    code_reviewer: phi3:mini
+    technical_writer: phi3:mini
+    sre_reliability_engineer: phi3:mini
+    release_manager: phi3:mini
+    devops_engineer: phi3:mini
+  fallbacks: {}
+  # Per-role token budgets: coding roles get more tokens so files aren't truncated.
+  role_options:
+    database_engineer:
+      num_predict: 2048
+      temperature: 0.1
+    api_integration_engineer:
+      num_predict: 2048
+      temperature: 0.1
+    backend_developer:
+      num_predict: 2048
+      temperature: 0.1
+    frontend_developer:
+      num_predict: 2048
+      temperature: 0.1
+    qa_engineer:
+      num_predict: 1536
+      temperature: 0.1
+    devops_engineer:
+      num_predict: 1536
+      temperature: 0.1
+    technical_writer:
+      num_predict: 1536
+      temperature: 0.2
+    data_analytics_engineer:
+      num_predict: 1536
+      temperature: 0.1
+  role_retries: {}
+
+agents:
+  ceo_planner: true
+  market_researcher: true
+  customer_support_feedback_analyst: true
+  product_manager: true
+  compliance_privacy_specialist: true
+  architect: true
+  ui_ux_designer: true
+  database_engineer: true
+  api_integration_engineer: true
+  frontend_developer: true
+  backend_developer: true
+  data_analytics_engineer: true
+  performance_engineer: true
+  security_engineer: true
+  qa_engineer: true
+  code_reviewer: true
+  technical_writer: true
+  sre_reliability_engineer: true
+  release_manager: true
+  devops_engineer: false   # enable only if you want Docker/CI configs
+
+output:
+  directory: output
+  save_individual_responses: true
+  save_final_report: true
+
+crew:
+  # 0 = no fix iterations (fastest, recommended for mid-range laptops)
+  # 1 = one fix pass after QA review (better output, 2x longer)
+  max_fix_iterations: 0
+  stop_on_no_major_issues: true
+  require_strategy_approval: true
+  blocking_severities: [critical, major]
+
+  # Disable resource-hungry optional features on low-RAM machines
+  # Set to true only if you have 16 GB+ RAM and the model pulled
+  enable_architect_quorum: false
+  enable_system_runner: false
+  enable_vector_memory: false
+  embedding_model: nomic-embed-text
+
+  research_mode: false
+  research_urls: []
+  research_timeout_seconds: 10
+  research_max_chars_per_source: 2000
+
+skills:
+  include_default_role_skills: true
+  enforce_handoff_sections: true
+  strict_mode: false
+  max_skills_per_agent: 8   # reduced from 12 to keep prompts shorter on small models
+  packs:
+    ecc:
+      enabled: false   # BUG FIX: disabled by default; ECC pack bloats prompts on phi3:mini
+      profile: starter
+  shared:
+    - structured communication
+    - security-first thinking
+    - verification mindset
+    - documentation discipline
+  per_role:
+    customer_support_feedback_analyst: [support signal prioritization]
+    compliance_privacy_specialist: [privacy impact thinking]
+    ui_ux_designer: [interaction design and prototype clarity]
+    database_engineer: [schema evolution safety]
+    api_integration_engineer: [resilient integration contracts]
+    frontend_developer: [ui consistency and accessibility]
+    backend_developer: [dependency hygiene]
+    data_analytics_engineer: [measurement reliability]
+    performance_engineer: [evidence-driven optimization]
+    security_engineer: [threat-led validation]
+    qa_engineer: [risk-based test prioritization]
+    technical_writer: [high-signal operational documentation]
+    sre_reliability_engineer: [slo-first reliability planning]
+    release_manager: [go-no-go discipline]
+  include: []
+  per_role_include: {}
+  exclude: []
+  per_role_exclude: {}

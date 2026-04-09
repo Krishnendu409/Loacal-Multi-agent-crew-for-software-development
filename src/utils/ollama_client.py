@@ -1,0 +1,272 @@
+"""Thin wrapper around the Ollama Python SDK."""
+
+from __future__ import annotations
+
+import json
+import threading
+import time
+from collections import OrderedDict
+from typing import Any
+
+_TIMEOUT_EXTENSION_SECONDS = 120
+_DEFAULT_TIMEOUT_BASE_SECONDS = 120
+
+
+def _get_ollama():
+    """Import ollama lazily so the test suite can mock it easily."""
+    try:
+        import ollama  # type: ignore[import-untyped]
+        return ollama
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "The 'ollama' package is required. Install it with:\n"
+            "    pip install ollama\n"
+            "and make sure the Ollama daemon is running (https://ollama.com)."
+        ) from exc
+
+
+class OllamaClient:
+    """Simple wrapper that sends a single-turn chat message to an Ollama model."""
+
+    def __init__(
+        self,
+        model: str = "phi3:mini",
+        base_url: str = "http://localhost:11434",
+        options: dict[str, Any] | None = None,
+        retries: int = 0,
+        timeout_seconds: int | None = None,
+        max_cache_entries: int = 128,  # BUG FIX: reduced default from 256 to save RAM
+    ) -> None:
+        self.model = model
+        self.base_url = base_url
+        self.options: dict[str, Any] = options or {}
+        self.retries = max(retries, 0)
+        self.timeout_seconds = timeout_seconds
+        self._client: Any = None
+        self._client_lock = threading.Lock()
+        self._cache: OrderedDict[tuple[str, str, str, str], str] = OrderedDict()
+        self._cache_lock = threading.Lock()
+        self._max_cache_entries = max(0, int(max_cache_entries))
+
+    def _get_client(self) -> Any:
+        """Return the shared Ollama client, creating it on first use (thread-safe)."""
+        if self._client is None:
+            with self._client_lock:
+                if self._client is None:
+                    self._client = self._build_client(self.timeout_seconds)
+        return self._client
+
+    def _build_client(self, timeout_seconds: int | None) -> Any:
+        ollama = _get_ollama()
+        kwargs: dict[str, Any] = {"host": self.base_url}
+        if timeout_seconds:
+            kwargs["timeout"] = timeout_seconds
+        return ollama.Client(**kwargs)
+
+    @staticmethod
+    def is_timeout_error(exc: Exception) -> bool:
+        timeout_types: tuple[type[Exception], ...] = (TimeoutError,)
+        try:
+            import httpx
+            timeout_types = (TimeoutError, httpx.TimeoutException)
+        except ImportError:  # pragma: no cover
+            pass
+        if isinstance(exc, timeout_types):
+            return True
+        if exc.__cause__ is not None and isinstance(exc.__cause__, timeout_types):
+            return True
+        text = str(exc).lower()
+        return "timed out" in text or "timeout" in text
+
+    def _extract_content(self, response: Any) -> str:
+        if hasattr(response, "model_dump") and callable(response.model_dump):
+            response = response.model_dump()
+        elif hasattr(response, "dict") and callable(response.dict):
+            response = response.dict()
+
+        if isinstance(response, dict):
+            message = response.get("message", {})
+            content = None
+            if isinstance(message, dict):
+                content = message.get("content")
+            elif hasattr(message, "content"):
+                content = getattr(message, "content")
+
+            normalized = self._normalize_content(content)
+            if normalized is not None:
+                return normalized
+
+            legacy_content = response.get("response")
+            if isinstance(legacy_content, str):
+                return legacy_content
+        raise RuntimeError("Ollama response missing message.content")
+
+    @staticmethod
+    def _normalize_content(content: Any) -> str | None:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, (list, tuple)):
+            text_parts: list[str] = []
+            for part in content:
+                if isinstance(part, str):
+                    text_parts.append(part)
+                    continue
+                if isinstance(part, dict):
+                    text = part.get("text")
+                    if isinstance(text, str):
+                        text_parts.append(text)
+                        continue
+                    nested_content = part.get("content")
+                    if isinstance(nested_content, str):
+                        text_parts.append(nested_content)
+            if text_parts:
+                return "".join(text_parts)
+        return None
+
+    @staticmethod
+    def _chat_once(
+        client: Any,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        options: dict[str, Any],
+        format_schema: dict[str, Any] | None,
+    ) -> Any:
+        return client.chat(
+            model=model,
+            messages=messages,
+            options=options or None,
+            format=format_schema or None,
+        )
+
+    def _store_cache(self, cache_key: tuple[str, str, str, str], content: str) -> None:
+        with self._cache_lock:
+            self._cache[cache_key] = content
+            self._cache.move_to_end(cache_key)
+            while len(self._cache) > self._max_cache_entries:
+                self._cache.popitem(last=False)
+
+    def chat(
+        self,
+        system_prompt: str,
+        user_message: str,
+        *,
+        model: str | None = None,
+        options: dict[str, Any] | None = None,
+        format_schema: dict[str, Any] | None = None,
+        fallback_models: list[str] | None = None,
+        retries_override: int | None = None,
+    ) -> str:
+        """Send a chat message and return the assistant's reply as a string."""
+        client = self._get_client()
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_message})
+
+        merged_options = dict(self.options)
+        if options:
+            merged_options.update(options)
+        options_signature = self._options_signature(merged_options)
+        format_signature = self._options_signature(format_schema or {})
+
+        model_candidates = [model or self.model]
+        if fallback_models:
+            model_candidates.extend([m for m in fallback_models if m])
+
+        errors: list[str] = []
+        effective_retries = self.retries if retries_override is None else max(retries_override, 0)
+        attempts = effective_retries + 1
+        for candidate in model_candidates:
+            cache_key = (
+                candidate,
+                system_prompt,
+                user_message,
+                f"{options_signature}|{format_signature}",
+            )
+            with self._cache_lock:
+                if cache_key in self._cache:
+                    self._cache.move_to_end(cache_key)
+                    return self._cache[cache_key]
+            for attempt in range(1, attempts + 1):
+                try:
+                    response = self._chat_once(
+                        client,
+                        model=candidate,
+                        messages=messages,
+                        options=merged_options,
+                        format_schema=format_schema,
+                    )
+                    content = self._extract_content(response)
+                    self._store_cache(cache_key, content)
+                    return content
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"{candidate} (attempt {attempt}/{attempts}): {exc}")
+                    if self.is_timeout_error(exc):
+                        timeout_base = (
+                            self.timeout_seconds
+                            if self.timeout_seconds is not None
+                            else _DEFAULT_TIMEOUT_BASE_SECONDS
+                        )
+                        extended_timeout = timeout_base + _TIMEOUT_EXTENSION_SECONDS
+                        try:
+                            extended_client = self._build_client(extended_timeout)
+                            response = self._chat_once(
+                                extended_client,
+                                model=candidate,
+                                messages=messages,
+                                options=merged_options,
+                                format_schema=format_schema,
+                            )
+                            content = self._extract_content(response)
+                            self._store_cache(cache_key, content)
+                            return content
+                        except Exception as timeout_retry_exc:  # noqa: BLE001
+                            errors.append(
+                                f"{candidate} (attempt {attempt}/{attempts}, "
+                                f"extended-timeout={extended_timeout}s): {timeout_retry_exc}"
+                            )
+                    if attempt < attempts:
+                        time.sleep(0.5)  # BUG FIX: increased from 0.2s to reduce hammering
+                    continue
+
+        error_text = "; ".join(errors) if errors else "unknown error"
+        raise RuntimeError(f"Ollama chat failed across model candidates: {error_text}")
+
+    def embed(self, text: str, *, model: str = "nomic-embed-text") -> list[float]:
+        """Create an embedding vector for *text* using Ollama embeddings API."""
+        if not text.strip():
+            return []
+        client = self._get_client()
+        try:
+            # BUG FIX: newer ollama SDK uses client.embed(), older uses client.embeddings()
+            if hasattr(client, "embed"):
+                response = client.embed(model=model, input=text)
+                # New SDK returns {"embeddings": [[...]]}
+                embeddings = None
+                if hasattr(response, "embeddings"):
+                    embeddings = response.embeddings
+                elif isinstance(response, dict):
+                    embeddings = response.get("embeddings")
+                if isinstance(embeddings, list) and embeddings:
+                    vec = embeddings[0] if isinstance(embeddings[0], list) else embeddings
+                    if all(isinstance(v, (float, int)) for v in vec):
+                        return [float(v) for v in vec]
+            # Fallback to legacy API
+            response = client.embeddings(model=model, prompt=text)
+            embedding = response.get("embedding") if isinstance(response, dict) else None
+            if isinstance(embedding, list) and all(isinstance(v, (float, int)) for v in embedding):
+                return [float(v) for v in embedding]
+        except Exception:
+            return []
+        return []
+
+    @staticmethod
+    def _options_signature(options: dict[str, Any]) -> str:
+        if not options:
+            return ""
+        try:
+            return json.dumps(options, sort_keys=True, default=str, separators=(",", ":"))
+        except (TypeError, ValueError):
+            return repr(options)
