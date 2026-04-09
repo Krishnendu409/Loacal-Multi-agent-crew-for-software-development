@@ -157,6 +157,26 @@ def test_kickoff_saves_individual_files(full_crew, tmp_path):
     assert len(md_files) >= 19
 
 
+def test_kickoff_persists_generated_files_from_structured_output(tmp_path):
+    llm = MagicMock()
+    llm.chat.return_value = json.dumps(
+        {
+            "files": [{"path": "backend/app.py", "content": "print('ok')\n"}],
+            "steps": ["Create backend module"],
+            "issues": [],
+            "status": "success",
+            "summary": "Backend scaffold generated.",
+            "handoff_notes": "Handoff Notes for Next Role",
+        }
+    )
+    agent = Agent(role="Product Manager", goal="Write specs", backstory="PM", llm=llm)
+    crew = DevCrew(agents=[agent], output_dir=tmp_path, save_individual=True, save_report=False)
+    crew.kickoff("Build app", project_name="gen_files")
+    generated_files = list(tmp_path.rglob("generated_project/backend/app.py"))
+    assert len(generated_files) == 1
+    assert generated_files[0].read_text(encoding="utf-8") == "print('ok')\n"
+
+
 def test_kickoff_saves_final_report(full_crew, tmp_path):
     full_crew.kickoff("Build a chat app", project_name="test_project")
     reports = list(tmp_path.rglob("FINAL_REPORT.md"))

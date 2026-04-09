@@ -39,7 +39,7 @@ _JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 # Keep summaries compact to avoid prompt bloat and excessive disk writes.
 MAX_SUMMARY_LENGTH = 3000
 # Bound JSON extraction to a practical size for local model outputs.
-MAX_PARSE_LENGTH = 20000
+MAX_PARSE_LENGTH = 200000
 
 
 def parse_structured_result(raw_text: str) -> AgentResult:

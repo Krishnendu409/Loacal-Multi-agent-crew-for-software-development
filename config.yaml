@@ -21,7 +21,7 @@ llm:
   # Generation options
   options:
     temperature: 0.4
-    num_predict: 512
+    num_predict: 2048
   # Role-specific model routing (keeps same team structure, better local quality)
   routing:
     ceo_planner: phi3:mini

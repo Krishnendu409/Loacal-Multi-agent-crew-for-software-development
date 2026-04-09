@@ -11,7 +11,7 @@ import pytest
 
 from src.agents.base_agent import Agent
 from src.agents.definitions import AGENT_ORDER, build_agents, register_agent_role
-from src.models.schemas import ArchitectHandoffSchema
+from src.models.schemas import ArchitectHandoffSchema, StandardAgentHandoffSchema
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +304,21 @@ def test_agent_execute_passes_format_schema_when_output_schema_set():
     _, kwargs = llm.chat.call_args
     assert isinstance(kwargs.get("format_schema"), dict)
     assert "properties" in kwargs["format_schema"]
+
+
+def test_agent_execute_passes_default_handoff_schema_when_enforced():
+    llm = MagicMock()
+    llm.chat.return_value = "{}"
+    agent = Agent(
+        role="Backend Developer",
+        goal="Implement backend",
+        backstory="Writes APIs",
+        llm=llm,
+        enforce_handoff_sections=True,
+    )
+    agent.execute("Implement endpoint")
+    _, kwargs = llm.chat.call_args
+    assert kwargs.get("format_schema") == StandardAgentHandoffSchema.model_json_schema()
 
 
 # ---------------------------------------------------------------------------
