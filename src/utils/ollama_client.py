@@ -10,7 +10,6 @@ import json
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Iterable
 from typing import Any
 
 _TIMEOUT_EXTENSION_SECONDS = 120
@@ -113,7 +112,7 @@ class OllamaClient:
     def _normalize_content(content: Any) -> str | None:
         if isinstance(content, str):
             return content
-        if isinstance(content, Iterable) and not isinstance(content, (str, bytes, dict)):
+        if isinstance(content, (list, tuple)):
             text_parts: list[str] = []
             for part in content:
                 if isinstance(part, str):
