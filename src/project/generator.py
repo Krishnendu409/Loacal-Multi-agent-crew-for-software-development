@@ -28,9 +28,7 @@ class ProjectGenerator:
             d.mkdir(parents=True, exist_ok=True)
 
         defaults = {
-            "backend/app.py": (
-                "def health() -> dict[str, str]:\n    return {'status': 'ok'}\n"
-            ),
+            "backend/app.py": ("def health() -> dict[str, str]:\n    return {'status': 'ok'}\n"),
             "tests/test_health.py": (
                 "from backend.app import health\n\n\ndef test_health():\n"
                 "    assert health() == {'status': 'ok'}\n"

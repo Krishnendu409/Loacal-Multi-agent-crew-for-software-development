@@ -16,6 +16,7 @@ def _get_ollama():
     """Import ollama lazily so the test suite can mock it easily."""
     try:
         import ollama  # type: ignore[import-untyped]
+
         return ollama
     except ImportError as exc:  # pragma: no cover
         raise ImportError(
@@ -68,6 +69,7 @@ class OllamaClient:
         timeout_types: tuple[type[Exception], ...] = (TimeoutError,)
         try:
             import httpx
+
             timeout_types = (TimeoutError, httpx.TimeoutException)
         except ImportError:  # pragma: no cover
             pass

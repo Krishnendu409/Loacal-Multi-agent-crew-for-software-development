@@ -26,9 +26,7 @@ class DockerExecutionRunner:
         if not files:
             return DockerRunResult(ok=True, stdout="", stderr="", skipped=True)
         test_files = [
-            f
-            for f in files
-            if f.get("path", "").startswith("test") or "/test" in f.get("path", "")
+            f for f in files if f.get("path", "").startswith("test") or "/test" in f.get("path", "")
         ]
         if not test_files:
             return DockerRunResult(ok=True, stdout="", stderr="", skipped=True)

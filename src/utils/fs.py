@@ -42,4 +42,5 @@ def next_versioned_path(base_dir: Path, stem: str, suffix: str) -> Path:
         # BUG FIX: cap at 9999 to avoid infinite loop on corrupted dirs
         if version > 9999:
             import time
+
             return base_dir / f"{stem}_{int(time.time())}{suffix}"

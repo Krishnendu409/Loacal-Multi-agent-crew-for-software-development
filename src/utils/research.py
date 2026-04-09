@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 # BUG FIX: strip HTML tags from fetched content so agents get plain text, not raw HTML
 import re as _re
+
 _HTML_TAG_RE = _re.compile(r"<[^>]+>")
 _MULTI_SPACE_RE = _re.compile(r"\s+")
 

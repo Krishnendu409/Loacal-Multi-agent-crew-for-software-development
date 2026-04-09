@@ -170,6 +170,28 @@ def _extract_json_payload(raw_text: str) -> dict[str, Any]:
     }
 
 
+def is_likely_truncated(raw_text: str) -> bool:
+    """Return True when *raw_text* looks like a partially-generated JSON response.
+
+    Heuristics used:
+    - Text starts with ``{`` (suggesting JSON output) but the last non-whitespace
+      character is not ``}`` — i.e. the closing brace is missing.
+    - OR the text is non-empty but ``json.loads`` raises a ``JSONDecodeError``.
+    """
+    stripped = raw_text.strip()
+    if not stripped:
+        return False
+    if stripped.startswith("{") and not stripped.endswith("}"):
+        return True
+    try:
+        json.loads(stripped)
+    except (json.JSONDecodeError, ValueError):
+        # Starts with { but decode failed — very likely truncated
+        if stripped.startswith("{"):
+            return True
+    return False
+
+
 def render_message_block(message: AgentMessage) -> str:
     """Render a protocol message as JSON for prompt context."""
     return json.dumps(message.to_dict(), indent=2, ensure_ascii=False)

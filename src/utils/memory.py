@@ -134,8 +134,10 @@ class CrewMemory:
             return []
         try:
             embedding = self._ollama_client.embed(text, model=self._embedding_model)
-            if isinstance(embedding, list) and embedding and all(
-                isinstance(v, (float, int)) for v in embedding
+            if (
+                isinstance(embedding, list)
+                and embedding
+                and all(isinstance(v, (float, int)) for v in embedding)
             ):
                 return [float(v) for v in embedding]
         except Exception as exc:
