@@ -16,8 +16,6 @@ from typing import Any
 
 from pydantic import ValidationError
 
-logger = logging.getLogger(__name__)
-
 from src.agents.base_agent import Agent
 from src.crew.state_graph import StateGraph
 from src.execution.docker_runner import DockerExecutionRunner
@@ -26,6 +24,8 @@ from src.protocol.messages import parse_structured_result
 from src.tasks.software_dev_tasks import TASKS, Task
 from src.utils import display
 from src.utils.memory import CrewMemory
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Agent execution order (task keys, used for start_from_role logic)
@@ -349,6 +349,7 @@ class DevCrew:
         status = "success"
         error_text = ""
         response = ""
+        _exc: Exception | None = None
         try:
             response = agent.execute(
                 task_description,
@@ -359,7 +360,7 @@ class DevCrew:
         except Exception as exc:  # noqa: BLE001
             status = "failed"
             error_text = str(exc)
-            raise
+            _exc = exc
         finally:
             duration_ms = int((time.perf_counter() - started) * 1000)
         safe_response = _sanitize_agent_output(response)
@@ -379,6 +380,12 @@ class DevCrew:
             if agent.llm_retries is not None
             else int(getattr(agent.llm, "retries", 0) or 0),
         )
+        if _exc is not None:
+            raise _exc
+        outputs[agent.role] = safe_response
+        context_parts.append(self._format_context_entry(agent.role, safe_response))
+        if self._memory and self._memory.enabled:
+            self._memory.add_artifact(role=agent.role, task=task.title, content=safe_response)
         display.print_agent_response(agent.role, safe_response)
         if self.save_individual:
             self._save_response(project_name, agent.role, safe_response)
@@ -409,6 +416,10 @@ class DevCrew:
                 safe_response = _sanitize_agent_output(response)
                 outputs[agent.role] = safe_response
                 context_parts.append(self._format_context_entry(agent.role, safe_response))
+                if self._memory and self._memory.enabled:
+                    self._memory.add_artifact(
+                        role=agent.role, task=task.title, content=safe_response
+                    )
                 self._record_manifest_role(
                     role=agent.role,
                     status="success",
