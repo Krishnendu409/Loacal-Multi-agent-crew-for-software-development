@@ -60,9 +60,6 @@ ROLE_SKILLS: dict[str, dict[str, str]] = {
     },
     "ui_ux_designer": {
         "interaction design": "Define user journeys and interaction states before visual design.",
-        "interaction design and prototype clarity": (
-            "Define user journeys and interaction states before visual design."
-        ),
         "accessibility first": "Meet WCAG 2.1 AA; never bolt on accessibility after the fact.",
     },
     "database_engineer": {
@@ -93,12 +90,10 @@ ROLE_SKILLS: dict[str, dict[str, str]] = {
     },
     "performance_engineer": {
         "performance bottleneck analysis": "Profile before optimizing; identify root causes with data.",
-        "evidence-driven optimization": "Profile before optimizing; cite measurements.",
         "latency budget": "Assign latency targets per layer; track cumulative budget.",
     },
     "security_engineer": {
         "threat modeling": "Model attacker goals and trust boundaries before identifying controls.",
-        "threat-led validation": "Model attacker goals first; then identify controls.",
         "remediation specificity": "Provide concrete fix guidance, not just vulnerability names.",
     },
     "qa_engineer": {
@@ -111,9 +106,6 @@ ROLE_SKILLS: dict[str, dict[str, str]] = {
     },
     "technical_writer": {
         "runbook authoring": "Write actionable runbooks for the 3am incident responder.",
-        "high-signal operational documentation": (
-            "Write for the 3am incident responder; every runbook must be actionable."
-        ),
         "audience-appropriate depth": "Developer docs vs user docs vs ops runbooks differ.",
     },
     "sre_reliability_engineer": {
