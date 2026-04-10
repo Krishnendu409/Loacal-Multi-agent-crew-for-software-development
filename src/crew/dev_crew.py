@@ -23,6 +23,7 @@ from src.models.schemas import ArchitectHandoffSchema, QuorumJudgeSchema
 from src.protocol.messages import (
     extract_context_summary,
     extract_fenced_files,
+    is_likely_truncated,
     parse_structured_result,
 )
 from src.tasks.software_dev_tasks import TASKS, Task
@@ -274,9 +275,7 @@ class DevCrew:
                     f"Known roles: {sorted(_ROLE_TO_TASK_KEY.keys())}"
                 )
             if start_key not in AGENT_ORDER:
-                raise ValueError(
-                    f"start_from_role key '{start_key}' not found in AGENT_ORDER."
-                )
+                raise ValueError(f"start_from_role key '{start_key}' not found in AGENT_ORDER.")
             start_order = AGENT_ORDER.index(start_key)
 
         self._initialize_manifest(
@@ -451,6 +450,73 @@ class DevCrew:
         finally:
             duration_ms = int((time.perf_counter() - started) * 1000)
 
+        # Persist raw LLM output for debugging before any sanitisation.
+        self._persist_raw_output(project_name, agent.role, response)
+
+        # JSON repair retry: when the response looks truncated or cannot be
+        # parsed, ask the model once more with a strict JSON-only instruction.
+        if _exc is None and is_likely_truncated(response):
+            logger.warning(
+                "Role '%s' returned likely-truncated JSON; attempting one repair call.",
+                agent.role,
+            )
+            try:
+                repair_system = (
+                    "You are a JSON repair assistant. "
+                    "Return ONLY valid, complete JSON — no prose, no fences."
+                )
+                repair_user = (
+                    "The following JSON response was cut off before it was complete. "
+                    "Complete it so it is valid JSON and return the finished object:\n\n"
+                    f"{response}"
+                )
+                repaired = agent.llm.chat(
+                    repair_system,
+                    repair_user,
+                    model=agent.llm_model,
+                    options=agent.llm_options,
+                    fallback_models=agent.llm_fallback_models,
+                )
+                if repaired and not is_likely_truncated(repaired):
+                    logger.info("Repair call succeeded for role '%s'.", agent.role)
+                    response = repaired
+                else:
+                    logger.warning(
+                        "Repair call for role '%s' still looks truncated; keeping original.",
+                        agent.role,
+                    )
+            except Exception as repair_exc:  # noqa: BLE001
+                logger.warning("Repair call for role '%s' failed: %s", agent.role, repair_exc)
+
+        # Code-producing retry: when the agent declares it produces code but
+        # files[] is empty, ask once more with an explicit "fill files[]" prompt.
+        if _exc is None and agent.produces_code:
+            parsed = parse_structured_result(response)
+            if not parsed.files:
+                logger.warning(
+                    "Role '%s' is a code-producing agent but returned empty files[]; "
+                    "retrying with explicit instruction.",
+                    agent.role,
+                )
+                try:
+                    retry_task = (
+                        f"{task_description}\n\n"
+                        "IMPORTANT: Your previous response contained NO entries in the "
+                        "'files' array. You MUST populate files[] with complete, runnable "
+                        "source code. Do NOT omit files or write code inside summary or "
+                        "handoff_notes. Every source file MUST appear as a separate entry "
+                        "in the JSON 'files' array with 'path' and 'content' keys."
+                    )
+                    response = agent.execute(
+                        retry_task,
+                        context=context,
+                        requirements=requirements,
+                        must_address=must_address,
+                    )
+                    self._persist_raw_output(project_name, agent.role, response, suffix="_retry")
+                except Exception as retry_exc:  # noqa: BLE001
+                    logger.warning("Code retry for role '%s' failed: %s", agent.role, retry_exc)
+
         safe_response = _sanitize_agent_output(response)
         outputs[agent.role] = safe_response
         context_parts.append(self._format_context_entry(agent.role, safe_response))
@@ -504,7 +570,9 @@ class DevCrew:
                     # BUG FIX: Quorum can fail if models are unavailable; fall back to normal exec
                     logger.warning(
                         "Architect quorum failed (attempt %d/%d): %s. Falling back to single model.",
-                        attempt, max_attempts, exc,
+                        attempt,
+                        max_attempts,
+                        exc,
                     )
                     response = self._execute_agent(
                         agent=agent,
@@ -818,6 +886,38 @@ class DevCrew:
                     continue
                 files.append({"path": path, "content": content})
         return files
+
+    @staticmethod
+    def _summarize_response(text: str, max_chars: int = 1200) -> str:
+        """Return a safe summary of *text* fitting within *max_chars*.
+
+        If *text* is already short enough it is returned unchanged.  Otherwise
+        the head and tail are preserved with an explicit ``[…]`` separator so
+        nothing is silently dropped.
+        """
+        if len(text) <= max_chars:
+            return text
+        separator = " […] "
+        budget = max_chars - len(separator)
+        if budget <= 0:
+            # max_chars too small to fit any meaningful content plus separator
+            return text[:max_chars]
+        # Allocate roughly 70% to the head, 30% to the tail.
+        head_chars = int(budget * 0.7)
+        tail_chars = budget - head_chars
+        return text[:head_chars] + separator + text[-tail_chars:]
+
+    def _persist_raw_output(
+        self, project_name: str, role: str, content: str, suffix: str = ""
+    ) -> None:
+        """Persist the raw model output before sanitisation for debugging."""
+        try:
+            run_dir = self._get_run_dir(project_name)
+            filename = f"{_safe_filename(role)}_raw{suffix}.txt"
+            path = run_dir / filename
+            _atomic_write(path, content)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Could not persist raw output for '%s': %s", role, exc)
 
     @staticmethod
     def _format_context_entry(role: str, response: str) -> str:

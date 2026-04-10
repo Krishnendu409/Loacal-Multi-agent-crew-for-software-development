@@ -112,6 +112,11 @@ def _ceo_planner(llm: "OllamaClient", llm_config: dict[str, object] | None) -> A
         ),
         llm=llm,
         extra_instructions=(
+            "STRICT GROUNDING RULES:\n"
+            "- Only use facts explicitly present in the stakeholder requirements or prior context.\n"
+            "- Do NOT invent examples, assume unrelated industries, or hallucinate use-cases.\n"
+            "- If information is missing, flag it as an Open Question.\n"
+            "- Stay within the project domain; never drift to unrelated topics.\n\n"
             "Write your full analysis in the 'handoff_notes' field as a structured report "
             "covering these sections:\n"
             "1. **Problem Framing** – clarified statement of the real problem\n"
@@ -119,7 +124,11 @@ def _ceo_planner(llm: "OllamaClient", llm_config: dict[str, object] | None) -> A
             "3. **Execution Plan** – phased plan with priorities\n"
             "4. **Risks & Dependencies** – what can block delivery\n"
             "5. **Decision Gate for User** – explicit options and recommended path\n"
-            "6. **Handoff to Market Researcher** – what to validate externally\n\n"
+            "6. **Implementation Blueprint** – proposed repo structure, modules/services, "
+            "data models (names only), core APIs (names only), milestones, "
+            "file-by-file checklist for Phase 1 (no code)\n"
+            "7. **Open Questions** – anything unclear or assumed\n"
+            "8. **Handoff to Market Researcher** – what to validate externally\n\n"
             "Use the 'summary' field for a one-paragraph executive overview. "
             "Use the 'steps' field for the ordered list of execution phases (short labels). "
             "List any blockers or unknowns in the 'issues' field."
@@ -140,6 +149,10 @@ def _market_researcher(llm: "OllamaClient", llm_config: dict[str, object] | None
         ),
         llm=llm,
         extra_instructions=(
+            "STRICT GROUNDING RULES:\n"
+            "- Base all analysis only on information present in the requirements and prior context.\n"
+            "- Do NOT invent market statistics, assume unrelated industries, or fabricate data.\n"
+            "- Flag missing information as assumptions or open questions.\n\n"
             "Write your full analysis in the 'handoff_notes' field as a structured report "
             "covering these sections:\n"
             "1. **Target Users & Jobs-to-be-Done**\n"
@@ -147,7 +160,8 @@ def _market_researcher(llm: "OllamaClient", llm_config: dict[str, object] | None
             "3. **Market Gaps** – unmet needs worth targeting\n"
             "4. **Differentiation Strategy** – where we can win\n"
             "5. **Scope Recommendation** – MVP vs next iterations\n"
-            "6. **Handoff to Product Manager** – decisions to encode in requirements\n\n"
+            "6. **Open Questions** – assumptions and missing information\n"
+            "7. **Handoff to Product Manager** – decisions to encode in requirements\n\n"
             "Use 'summary' for a brief one-paragraph overview. "
             "List key market gaps or risks in the 'issues' field."
         ),
@@ -169,13 +183,18 @@ def _customer_support_feedback_analyst(
         ),
         llm=llm,
         extra_instructions=(
+            "STRICT GROUNDING RULES:\n"
+            "- Infer pain points only from the project requirements and prior context.\n"
+            "- Do NOT assume unrelated support scenarios or invent user feedback data.\n"
+            "- Flag any inference as an assumption.\n\n"
             "Write your full analysis in the 'handoff_notes' field as a structured report "
             "covering these sections:\n"
             "1. **Likely User Pain Points** – top issues users will face\n"
             "2. **Supportability Requirements** – diagnostics, logs, error clarity, self-help\n"
             "3. **Feedback Loops** – what telemetry/support channels are needed\n"
             "4. **Priority Recommendations** – what should be fixed first and why\n"
-            "5. **Handoff to Product Manager** – support-driven requirements to include\n\n"
+            "5. **Open Questions** – assumptions and missing information\n"
+            "6. **Handoff to Product Manager** – support-driven requirements to include\n\n"
             "Use 'summary' for a brief one-paragraph overview. "
             "List the top pain points in the 'issues' field."
         ),
@@ -198,6 +217,12 @@ def _product_manager(llm: "OllamaClient", llm_config: dict[str, object] | None) 
         ),
         llm=llm,
         extra_instructions=(
+            "STRICT GROUNDING RULES:\n"
+            "- Base every requirement only on information in the stakeholder requirements "
+            "and prior planning context.\n"
+            "- Do NOT invent features, assume unrelated industries, or hallucinate use-cases.\n"
+            "- List every ambiguity or unknown explicitly in the Open Questions section.\n"
+            "- Stay strictly within the project domain; do NOT drift to unrelated topics.\n\n"
             "Write your full product specification in the 'handoff_notes' field, "
             "structured as:\n"
             "1. **Project Overview** – one-paragraph summary\n"
@@ -206,7 +231,10 @@ def _product_manager(llm: "OllamaClient", llm_config: dict[str, object] | None) 
             "4. **Non-Functional Requirements** – performance, security, scalability\n"
             "5. **User Stories** – 'As a <user>, I want <feature> so that <benefit>'\n"
             "6. **Acceptance Criteria** – how we know the project is done\n"
-            "7. **Open Questions** – anything still unclear\n\n"
+            "7. **Implementation Blueprint** – proposed repo structure, modules/services, "
+            "data models (names only), core APIs (names only), milestones, "
+            "file-by-file checklist for Phase 1 (no code)\n"
+            "8. **Open Questions** – anything still unclear\n\n"
             "Use 'summary' for the one-paragraph project overview. "
             "List open questions and unresolved ambiguities in the 'issues' field."
         ),
@@ -228,12 +256,20 @@ def _compliance_privacy_specialist(
         ),
         llm=llm,
         extra_instructions=(
+            "STRICT GROUNDING RULES:\n"
+            "- Derive all regulatory scope assumptions from the project domain and requirements.\n"
+            "- Do NOT assume regulations from unrelated industries (e.g., do not apply "
+            "healthcare rules to a generic web app unless the requirements indicate it).\n"
+            "- If the applicable regulatory framework is ambiguous, state it as an assumption "
+            "and list it as an open question.\n"
+            "- Do NOT invent data-handling mandates not implied by the project.\n\n"
             "Write your full compliance assessment in the 'handoff_notes' field, structured as:\n"
             "1. **Regulatory Scope Assumptions** – likely applicable standards\n"
             "2. **Data Classification & Flows** – what data is sensitive and where it moves\n"
             "3. **Required Controls** – retention, consent, access, deletion, auditability\n"
             "4. **Implementation Constraints** – must-do requirements for architecture/build\n"
-            "5. **Handoff to Architect and Security Engineer** – mandatory guardrails\n\n"
+            "5. **Open Questions** – assumptions and unknown regulatory scope\n"
+            "6. **Handoff to Architect and Security Engineer** – mandatory guardrails\n\n"
             "Use 'summary' for a brief overview. "
             "List each mandatory control as a separate entry in the 'issues' field."
         ),

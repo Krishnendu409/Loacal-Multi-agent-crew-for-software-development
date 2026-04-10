@@ -400,6 +400,13 @@ def test_summarize_response_does_not_truncate_midword():
     assert "[…]" in result
 
 
+def test_summarize_response_very_small_max_chars_does_not_crash():
+    """When max_chars is smaller than the separator length, must not crash."""
+    result = _summarize_response("hello world this is long text", max_chars=3)
+    assert isinstance(result, str)
+    assert len(result) <= 3
+
+
 # ---------------------------------------------------------------------------
 # P1 #9: loop control – no review runs with no fix available
 # ---------------------------------------------------------------------------
@@ -504,7 +511,8 @@ def test_kickoff_reinitializes_run_directory_between_invocations(tmp_path):
 def test_architect_invalid_json_bounces_back_with_retry(tmp_path):
     architect = _make_mock_agent("Software Architect")
     architect.llm.chat.side_effect = [
-        '{"invalid": true}',
+        # First response: plain text (not JSON) — triggers schema validation failure and retry
+        "Sorry, I cannot produce the JSON right now.",
         json.dumps(
             {
                 "system_diagram_json": {"nodes": ["api"], "edges": []},
@@ -552,3 +560,176 @@ def test_review_graph_routes_database_issue_to_database_engineer(tmp_path):
     fe_agent = next(a for a in agents if a.role == "Frontend Developer")
     assert db_agent.llm.chat.call_count == 2
     assert fe_agent.llm.chat.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# JSON repair retry
+# ---------------------------------------------------------------------------
+
+
+def test_execute_agent_triggers_repair_retry_on_truncated_json(tmp_path):
+    """When agent returns truncated JSON (starts with { but no closing }),
+    _execute_agent should call agent.llm.chat a second time to repair it."""
+    from src.protocol.messages import is_likely_truncated
+
+    llm = MagicMock()
+    truncated = '{"summary": "started but not finished'
+    repaired = json.dumps(
+        {
+            "files": [],
+            "steps": [],
+            "issues": [],
+            "status": "success",
+            "summary": "started but not finished",
+            "handoff_notes": "done",
+        }
+    )
+    # First call (from agent.execute): truncated; second call (repair): complete
+    llm.chat.side_effect = [truncated, repaired]
+    agent = Agent(role="Product Manager", goal="Goal", backstory="B", llm=llm)
+    crew = DevCrew(agents=[agent], output_dir=tmp_path, save_individual=False, save_report=False)
+    outputs = crew.kickoff("Build app", project_name="repair_test")
+    # Verify truncation detection is correct
+    assert is_likely_truncated(truncated)
+    # llm.chat should have been called twice: once by agent.execute, once for repair
+    assert llm.chat.call_count == 2
+    assert "Product Manager" in outputs
+
+
+def test_execute_agent_no_repair_when_valid_json(tmp_path):
+    """When agent returns valid complete JSON, no repair call should happen."""
+    llm = MagicMock()
+    valid = json.dumps(
+        {
+            "files": [],
+            "steps": [],
+            "issues": [],
+            "status": "success",
+            "summary": "ok",
+            "handoff_notes": "done",
+        }
+    )
+    llm.chat.return_value = valid
+    agent = Agent(role="Product Manager", goal="Goal", backstory="B", llm=llm)
+    crew = DevCrew(agents=[agent], output_dir=tmp_path, save_individual=False, save_report=False)
+    crew.kickoff("Build app", project_name="no_repair_test")
+    assert llm.chat.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Raw output persistence
+# ---------------------------------------------------------------------------
+
+
+def test_execute_agent_persists_raw_output(tmp_path):
+    """_execute_agent must write a raw output file before returning."""
+    llm = MagicMock()
+    llm.chat.return_value = "Raw model response for persistence test"
+    agent = Agent(role="Product Manager", goal="Goal", backstory="B", llm=llm)
+    crew = DevCrew(agents=[agent], output_dir=tmp_path, save_individual=False, save_report=False)
+    crew.kickoff("Build app", project_name="raw_persist")
+    # Exact expected filename: _safe_filename("Product Manager") + "_raw.txt"
+    run_dirs = [p for p in tmp_path.iterdir() if p.is_dir() and p.name.startswith("raw_persist_")]
+    assert len(run_dirs) == 1
+    raw_file = run_dirs[0] / "product_manager_raw.txt"
+    assert raw_file.exists(), f"Expected raw output file at {raw_file}"
+    assert "Raw model response for persistence test" in raw_file.read_text()
+
+
+# ---------------------------------------------------------------------------
+# Planning blueprint presence
+# ---------------------------------------------------------------------------
+
+
+def test_ceo_planner_task_contains_implementation_blueprint():
+    """The CEO Planner task prompt must include an Implementation Blueprint section."""
+    from src.tasks.software_dev_tasks import TASKS
+
+    task = TASKS["ceo_planner"]
+    rendered = task.render(requirements="build a task tracker")
+    assert "Implementation Blueprint" in rendered
+
+
+def test_product_manager_task_contains_implementation_blueprint():
+    """The Product Manager task prompt must include an Implementation Blueprint section."""
+    from src.tasks.software_dev_tasks import TASKS
+
+    task = TASKS["product_manager"]
+    rendered = task.render(requirements="build a task tracker")
+    assert "Implementation Blueprint" in rendered
+
+
+def test_planning_tasks_contain_grounding_rules():
+    """Planning task prompts must include strict grounding rules to reduce hallucinations."""
+    from src.tasks.software_dev_tasks import TASKS
+
+    for key in ("ceo_planner", "product_manager", "compliance_privacy_specialist"):
+        rendered = TASKS[key].render(requirements="dummy")
+        assert "GROUNDING RULES" in rendered, f"Task '{key}' missing GROUNDING RULES"
+
+
+# ---------------------------------------------------------------------------
+# Code-producing retry when files[] empty
+# ---------------------------------------------------------------------------
+
+
+def test_execute_agent_retries_when_code_agent_returns_empty_files(tmp_path):
+    """When a produces_code agent returns no files, _execute_agent must retry once."""
+    llm = MagicMock()
+    empty_files_response = json.dumps(
+        {
+            "files": [],
+            "steps": [],
+            "issues": [],
+            "status": "success",
+            "summary": "done",
+            "handoff_notes": "here",
+        }
+    )
+    populated_response = json.dumps(
+        {
+            "files": [{"path": "src/app.py", "content": "print('hi')\n"}],
+            "steps": [],
+            "issues": [],
+            "status": "success",
+            "summary": "code written",
+            "handoff_notes": "here",
+        }
+    )
+    llm.chat.side_effect = [empty_files_response, populated_response]
+    agent = Agent(
+        role="Backend Developer",
+        goal="Write backend",
+        backstory="Developer",
+        llm=llm,
+        produces_code=True,
+    )
+    crew = DevCrew(agents=[agent], output_dir=tmp_path, save_individual=False, save_report=False)
+    crew.kickoff("Build app", project_name="code_retry_test")
+    # llm.chat called twice: original + code retry
+    assert llm.chat.call_count == 2
+
+
+def test_execute_agent_no_code_retry_when_files_populated(tmp_path):
+    """When a produces_code agent already returns files, no retry should occur."""
+    llm = MagicMock()
+    llm.chat.return_value = json.dumps(
+        {
+            "files": [{"path": "src/app.py", "content": "print('hi')\n"}],
+            "steps": [],
+            "issues": [],
+            "status": "success",
+            "summary": "done",
+            "handoff_notes": "here",
+        }
+    )
+    agent = Agent(
+        role="Backend Developer",
+        goal="Write backend",
+        backstory="Developer",
+        llm=llm,
+        produces_code=True,
+    )
+    crew = DevCrew(agents=[agent], output_dir=tmp_path, save_individual=False, save_report=False)
+    crew.kickoff("Build app", project_name="no_code_retry_test")
+    assert llm.chat.call_count == 1

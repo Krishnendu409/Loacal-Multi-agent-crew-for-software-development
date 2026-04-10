@@ -42,7 +42,8 @@ class StateGraph:
                 # BUG FIX: log and break instead of crashing the entire pipeline
                 logger.warning(
                     "StateGraph reached max_steps=%d at node %r; stopping gracefully.",
-                    max_steps, current,
+                    max_steps,
+                    current,
                 )
                 break
             node = self._nodes.get(current)
