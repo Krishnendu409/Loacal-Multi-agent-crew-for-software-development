@@ -698,7 +698,7 @@ class DevCrew:
             retries_override=agent.llm_retries,
         )
         result = QuorumJudgeSchema.model_validate_json(judged)
-        return result.merged_architecture.model_dump_json(indent=2)
+        return str(result.merged_architecture.model_dump_json(indent=2))
 
     def _run_review_graph(
         self,
@@ -887,26 +887,6 @@ class DevCrew:
                 files.append({"path": path, "content": content})
         return files
 
-    @staticmethod
-    def _summarize_response(text: str, max_chars: int = 1200) -> str:
-        """Return a safe summary of *text* fitting within *max_chars*.
-
-        If *text* is already short enough it is returned unchanged.  Otherwise
-        the head and tail are preserved with an explicit ``[…]`` separator so
-        nothing is silently dropped.
-        """
-        if len(text) <= max_chars:
-            return text
-        separator = " […] "
-        budget = max_chars - len(separator)
-        if budget <= 0:
-            # max_chars too small to fit any meaningful content plus separator
-            return text[:max_chars]
-        # Allocate roughly 70% to the head, 30% to the tail.
-        head_chars = int(budget * 0.7)
-        tail_chars = budget - head_chars
-        return text[:head_chars] + separator + text[-tail_chars:]
-
     def _persist_raw_output(
         self, project_name: str, role: str, content: str, suffix: str = ""
     ) -> None:
@@ -955,17 +935,17 @@ class DevCrew:
         - If already within budget, return unchanged.
         - Otherwise return ``head + " […] " + tail`` where the total length is
           ``<= max_chars``.
-        - At least one character from both the start and end is preserved.
+        - When max_chars is too small to fit the separator, return text[:max_chars].
         """
         if len(text) <= max_chars:
             return text
         sep = " […] "
-        budget = max(max_chars, len(sep) + 2)
-        head_len = max(1, (budget - len(sep)) // 2)
-        tail_len = max(1, budget - len(sep) - head_len)
-        head = text[:head_len]
-        tail = text[-tail_len:]
-        return f"{head}{sep}{tail}"
+        budget = max_chars - len(sep)
+        if budget <= 0:
+            return text[:max_chars]
+        head_len = max(1, int(budget * 0.7))
+        tail_len = max(1, budget - head_len)
+        return text[:head_len] + sep + text[-tail_len:]
 
     def _save_response(self, project_name: str, role: str, content: str) -> None:
         run_dir = self._get_run_dir(project_name)

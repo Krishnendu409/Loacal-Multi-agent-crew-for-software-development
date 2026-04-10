@@ -37,7 +37,8 @@ def fetch_research_context(
         parsed = urlparse(clean_url)
         if parsed.scheme not in {"http", "https"}:
             snippets.append(
-                f"### Source: {clean_url}\n(skipped: only http/https URLs are supported)"
+                f"### Source: {clean_url}\n"
+                f"(unsupported URL scheme '{parsed.scheme}': only http/https allowed)"
             )
             continue
         try:

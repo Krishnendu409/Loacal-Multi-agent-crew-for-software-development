@@ -56,14 +56,17 @@ ROLE_SKILLS: dict[str, dict[str, str]] = {
     "architect": {
         "simplicity bias": "Choose the simplest architecture that meets requirements.",
         "trade-off documentation": "Record why rejected options were rejected.",
+        "domain-driven design": "Model the domain explicitly before choosing implementation.",
     },
     "ui_ux_designer": {
+        "interaction design": "Define user journeys and interaction states before visual design.",
         "interaction design and prototype clarity": (
             "Define user journeys and interaction states before visual design."
         ),
         "accessibility first": "Meet WCAG 2.1 AA; never bolt on accessibility after the fact.",
     },
     "database_engineer": {
+        "schema design and normalization": "Design schemas that enforce data integrity and support query patterns.",
         "schema evolution safety": "Every schema change must be reversible or zero-downtime.",
         "index discipline": "Index for query patterns; avoid over-indexing.",
     },
@@ -80,6 +83,7 @@ ROLE_SKILLS: dict[str, dict[str, str]] = {
         "bundle hygiene": "Avoid heavy dependencies; measure bundle size impact.",
     },
     "backend_developer": {
+        "secure coding": "Apply security controls at every layer; sanitise inputs, escape outputs.",
         "dependency hygiene": "Pin versions; audit for vulnerabilities; prefer standard library.",
         "error boundary design": "Every external call must have explicit failure handling.",
     },
@@ -88,10 +92,12 @@ ROLE_SKILLS: dict[str, dict[str, str]] = {
         "schema-on-write discipline": "Validate data at ingestion; fail fast on bad data.",
     },
     "performance_engineer": {
+        "performance bottleneck analysis": "Profile before optimizing; identify root causes with data.",
         "evidence-driven optimization": "Profile before optimizing; cite measurements.",
         "latency budget": "Assign latency targets per layer; track cumulative budget.",
     },
     "security_engineer": {
+        "threat modeling": "Model attacker goals and trust boundaries before identifying controls.",
         "threat-led validation": "Model attacker goals first; then identify controls.",
         "remediation specificity": "Provide concrete fix guidance, not just vulnerability names.",
     },
@@ -104,6 +110,7 @@ ROLE_SKILLS: dict[str, dict[str, str]] = {
         "severity tagging": "Tag every finding [Critical] / [Major] / [Minor].",
     },
     "technical_writer": {
+        "runbook authoring": "Write actionable runbooks for the 3am incident responder.",
         "high-signal operational documentation": (
             "Write for the 3am incident responder; every runbook must be actionable."
         ),
@@ -129,42 +136,52 @@ def get_skills_for_role(
     shared_keys: list[str] | None = None,
     extra_keys: list[str] | None = None,
     exclude_keys: list[str] | None = None,
-    max_skills: int = 8,
+    max_skills: int = 12,
 ) -> list[str]:
-    """Return a list of skill description strings for *role_key*.
+    """Return a list of skill name strings for *role_key*.
 
     Skills are selected in priority order:
-      1. Role-specific skills from ROLE_SKILLS
-      2. Shared skills from SHARED_SKILLS (filtered by *shared_keys*)
+      1. Role-specific skill names from ROLE_SKILLS
+      2. Shared skill names from SHARED_SKILLS (filtered by *shared_keys*)
+      3. Extra skill names (passed verbatim)
 
     The result is capped at *max_skills* to prevent context overflow.
     """
     skills: list[str] = []
     exclude = set(exclude_keys or [])
 
-    # Role-specific first
+    # Role-specific skill names first
     role_skill_map = ROLE_SKILLS.get(role_key, {})
-    for name, desc in role_skill_map.items():
+    for name in role_skill_map:
         if name not in exclude:
-            skills.append(desc)
+            skills.append(name)
 
-    # Then shared skills
+    # Then shared skill names
     keys_to_include = shared_keys if shared_keys is not None else list(SHARED_SKILLS.keys())
     for name in keys_to_include:
         if name in exclude:
             continue
-        desc = SHARED_SKILLS.get(name)
-        if desc:
-            skills.append(desc)
+        if name in SHARED_SKILLS and name not in skills:
+            skills.append(name)
 
-    # Optional extras
+    # Optional extras (verbatim – not looked up in catalog)
     if extra_keys:
         for name in extra_keys:
-            desc = SHARED_SKILLS.get(name) or role_skill_map.get(name)
-            if desc and desc not in skills:
-                skills.append(desc)
+            if name not in exclude and name not in skills:
+                skills.append(name)
 
     return skills[:max_skills]
+
+
+def _all_known_skill_keys() -> set[str]:
+    """Return the set of all known skill keys and ECC labels for validation."""
+    from src.skills.ecc_pack import ECC_CANONICAL_SKILLS  # avoid circular at module level
+
+    known: set[str] = set(SHARED_SKILLS.keys())
+    for role_skills in ROLE_SKILLS.values():
+        known.update(role_skills.keys())
+    known.update(s.label for s in ECC_CANONICAL_SKILLS.values())
+    return known
 
 
 def resolve_agent_skills(
@@ -173,47 +190,92 @@ def resolve_agent_skills(
 ) -> list[str]:
     """Resolve skills for *role_key* using the skills configuration block.
 
-    Returns an empty list if skills_config is None or disabled.
+    When *skills_config* is ``None`` the role's default skills are returned.
+    Returns an empty list only when explicitly disabled via
+    ``include_default_role_skills: false`` with no other inclusions.
     """
-    if not skills_config:
-        return []
+    if skills_config is None:
+        return get_skills_for_role(role_key)
 
-    if not skills_config.get("include_default_role_skills", True):
-        return []
-
-    max_skills = int(skills_config.get("max_skills_per_agent", 8))
-    shared_keys: list[str] = list(skills_config.get("shared", SHARED_SKILLS.keys()))
-
-    # Per-role overrides from config
-    per_role: dict[str, list[str]] = {}
-    raw_per_role = skills_config.get("per_role", {})
-    if isinstance(raw_per_role, dict):
-        per_role = {k: list(v) for k, v in raw_per_role.items() if isinstance(v, list)}
-
-    extra_keys: list[str] = list(per_role.get(role_key, []))
-
-    # Global include / exclude lists
-    include: list[str] = list(skills_config.get("include", []))
+    # Gather exclusions
     exclude: list[str] = list(skills_config.get("exclude", []))
-
-    # Per-role include / exclude
-    per_role_include: dict[str, list[str]] = {}
-    raw_pri = skills_config.get("per_role_include", {})
-    if isinstance(raw_pri, dict):
-        per_role_include = {k: list(v) for k, v in raw_pri.items() if isinstance(v, list)}
-    extra_keys.extend(per_role_include.get(role_key, []))
-    extra_keys.extend(include)
-
     per_role_exclude: dict[str, list[str]] = {}
     raw_pre = skills_config.get("per_role_exclude", {})
     if isinstance(raw_pre, dict):
         per_role_exclude = {k: list(v) for k, v in raw_pre.items() if isinstance(v, list)}
     exclude.extend(per_role_exclude.get(role_key, []))
 
-    return get_skills_for_role(
-        role_key=role_key,
-        shared_keys=shared_keys,
-        extra_keys=extra_keys,
-        exclude_keys=exclude,
-        max_skills=max_skills,
-    )
+    # Gather global includes
+    include: list[str] = list(skills_config.get("include", []))
+
+    # Strict-mode: validate all referenced keys are known
+    if skills_config.get("strict_mode", False):
+        known = _all_known_skill_keys()
+        for key in exclude:
+            if key not in known:
+                raise ValueError(f"Unknown skill reference: {key!r}")
+        for key in include:
+            if key not in known:
+                raise ValueError(f"Unknown skill reference: {key!r}")
+
+    max_skills = int(skills_config.get("max_skills_per_agent", 16))
+    exclude_set = set(exclude)
+    skills: list[str] = []
+
+    include_defaults = bool(skills_config.get("include_default_role_skills", True))
+
+    if include_defaults:
+        # Add role-specific skill names
+        shared_keys: list[str] = list(skills_config.get("shared", SHARED_SKILLS.keys()))
+        skills = get_skills_for_role(
+            role_key=role_key,
+            shared_keys=shared_keys,
+            exclude_keys=list(exclude_set),
+            max_skills=max_skills,
+        )
+    else:
+        # include_default_role_skills=False: only explicitly listed skills are included
+        shared_keys = list(skills_config.get("shared", []))
+        for name in shared_keys:
+            if name not in exclude_set and name not in skills:
+                skills.append(name)
+
+    # Per-role explicit skills
+    per_role: dict[str, list[str]] = {}
+    raw_per_role = skills_config.get("per_role", {})
+    if isinstance(raw_per_role, dict):
+        per_role = {k: list(v) for k, v in raw_per_role.items() if isinstance(v, list)}
+    for name in per_role.get(role_key, []):
+        if name not in exclude_set and name not in skills:
+            skills.append(name)
+
+    # Per-role includes
+    per_role_include: dict[str, list[str]] = {}
+    raw_pri = skills_config.get("per_role_include", {})
+    if isinstance(raw_pri, dict):
+        per_role_include = {k: list(v) for k, v in raw_pri.items() if isinstance(v, list)}
+    for name in per_role_include.get(role_key, []):
+        if name not in exclude_set and name not in skills:
+            skills.append(name)
+
+    # Global includes
+    for name in include:
+        if name not in exclude_set and name not in skills:
+            skills.append(name)
+
+    # ECC pack integration
+    pack_cfg = skills_config.get("packs", {})
+    ecc_cfg = pack_cfg.get("ecc", {}) if isinstance(pack_cfg, dict) else {}
+    if isinstance(ecc_cfg, dict) and ecc_cfg.get("enabled", False):
+        from src.skills.ecc_pack import ECC_CANONICAL_SKILLS, PACK_PROFILES  # noqa: PLC0415
+
+        profile_name = str(ecc_cfg.get("profile", "starter"))
+        profile_keys = PACK_PROFILES.get(profile_name, PACK_PROFILES["starter"])
+        for key in profile_keys:
+            skill = ECC_CANONICAL_SKILLS.get(key)
+            if skill and role_key in skill.recommended_roles:
+                label = skill.label
+                if label not in exclude_set and label not in skills:
+                    skills.append(label)
+
+    return skills[:max_skills]
